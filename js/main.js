@@ -7,11 +7,12 @@
  * 1. シーンデータ設定（10シーン＋複数製品対応）
  * 2. DOM要素参照
  * 3. 状態管理
- * 4. Markdown説明キャッシュと読み込み
- * 5. シーン描画と切替
- * 6. ホットスポット描画とインタラクション
- * 7. 詳細パネルとアニメーション（複数製品＋左画像右テキスト）
- * 8. イベントバインドと初期化
+ * 4. 画像プリロード（全シーン画像＋製品画像を事前読み込み）
+ * 5. Markdown説明キャッシュと読み込み
+ * 6. シーン描画と切替
+ * 7. ホットスポット描画とインタラクション
+ * 8. 詳細パネルとアニメーション（複数製品＋左画像右テキスト）
+ * 9. イベントバインドと初期化
  */
 
 /* ============================================
@@ -197,7 +198,8 @@ const state = {
     isTransitioning: false,
     isDetailOpen: false,
     currentHotspot: null,
-    activeLayer: 'a'  /* 現在表示中のレイヤ：'a' または 'b'、クロスフェード用 */
+    activeLayer: 'a',  /* 現在表示中のレイヤ：'a' または 'b'、クロスフェード用 */
+    preloadedImages: {} /* プリロード済み画像のキャッシュ：キー=画像パス、値=Imageオブジェクト */
 };
 
 /**
@@ -227,7 +229,104 @@ const descriptionCache = {};
 
 
 /* ============================================
-   4. Markdown説明キャッシュと読み込み
+   4. 画像プリロード
+   ============================================ */
+
+/**
+ * 全シーン画像と製品画像を事前読み込みする
+ * ブラウザのキャッシュに画像を格納し、シーン切替時の遅延を防止
+ * 
+ * 仕組み：
+ * - 非表示のImageオブジェクトを作成し、srcに画像パスを設定
+ * - ブラウザが自動的にダウンロードし、HTTPキャッシュに保存
+ * - その後<img>要素で同じパスを指定すると、キャッシュから即座に表示
+ * 
+ * @returns {Promise<number>} 読み込みに成功した画像数
+ */
+function preloadAllImages() {
+    /* 重複を排除して全画像パスを収集 */
+    const imagePaths = new Set();
+
+    /* シーン画像を収集 */
+    scenes.forEach(scene => {
+        imagePaths.add(scene.image);
+    });
+
+    /* 製品画像を収集 */
+    scenes.forEach(scene => {
+        scene.products.forEach(product => {
+            imagePaths.add(product.image);
+        });
+    });
+
+    const total = imagePaths.size;
+    let loaded = 0;
+
+    /**
+     * 1枚の画像をプリロード
+     * @param {string} src - 画像パス
+     * @returns {Promise<void>}
+     */
+    const preloadOne = (src) => {
+        return new Promise((resolve) => {
+            /* 既にプリロード済みの場合はスキップ */
+            if (state.preloadedImages[src]) {
+                loaded++;
+                resolve();
+                return;
+            }
+
+            const img = new Image();
+            img.onload = () => {
+                state.preloadedImages[src] = img;
+                loaded++;
+                resolve();
+            };
+            img.onerror = () => {
+                /* 読み込み失敗でもエラーで止めず、警告のみ出力 */
+                console.warn(`画像のプリロードに失敗: ${src}`);
+                resolve();
+            };
+            img.src = src;
+        });
+    };
+
+    /* 全画像を並列読み込み */
+    return Promise.all(Array.from(imagePaths).map(preloadOne)).then(() => {
+        console.log(`画像プリロード完了: ${loaded}/${total}枚`);
+        return loaded;
+    });
+}
+
+/**
+ * 指定した画像がプリロード済みか確認
+ * @param {string} src - 画像パス
+ * @returns {boolean}
+ */
+function isImagePreloaded(src) {
+    return !!state.preloadedImages[src];
+}
+
+/**
+ * 画像の読み込み完了を待機するヘルパー関数
+ * プリロード済みなら即座に解決、未読み込みならonloadを待機
+ * @param {HTMLImageElement} imgEl - 対象の<img>要素
+ * @returns {Promise<void>}
+ */
+function waitForImageLoad(imgEl) {
+    return new Promise((resolve) => {
+        if (imgEl.complete && imgEl.naturalWidth > 0) {
+            resolve();
+        } else {
+            imgEl.onload = () => resolve();
+            imgEl.onerror = () => resolve();
+        }
+    });
+}
+
+
+/* ============================================
+   5. Markdown説明キャッシュと読み込み
    ============================================ */
 
 /**
@@ -277,20 +376,25 @@ function parseMarkdown(markdown) {
 
 
 /* ============================================
-   5. シーン描画と切替
+   6. シーン描画と切替
    ============================================ */
 
 /**
  * 指定インデックスのシーンを描画（クロスフェード、黒画面なし）
+ * 
+ * 改良ポイント：
+ * - 画像読み込み完了後にクロスフェードを開始（空白画面を防止）
+ * - プリロード済みの場合は即座にフェード開始（遅延なし）
+ * - 未プリロードの場合は現在のシーンを表示したまま待機
+ * 
  * @param {number} index - シーンインデックス
  * @param {boolean} animate - 遷移アニメーションを使用するか
  */
-function renderScene(index, animate = true) {
+async function renderScene(index, animate = true) {
     const scene = scenes[index];
     if (!scene) return;
 
     if (animate) {
-        /* 現在のレイヤとターゲットレイヤを特定 */
         const currentImg = state.activeLayer === 'a' ? dom.sceneImageA : dom.sceneImageB;
         const nextImg = state.activeLayer === 'a' ? dom.sceneImageB : dom.sceneImageA;
 
@@ -304,6 +408,9 @@ function renderScene(index, animate = true) {
         nextImg.src = scene.image;
         nextImg.alt = scene.name;
 
+        /* ★改良：画像読み込み完了を待ってからクロスフェード開始 */
+        await waitForImageLoad(nextImg);
+
         /* クロスフェード：新レイヤをフェードイン、旧レイヤをフェードアウト */
         nextImg.classList.add('active');
         nextImg.classList.remove('inactive');
@@ -313,31 +420,25 @@ function renderScene(index, animate = true) {
         /* アクティブレイヤマークを切替 */
         state.activeLayer = state.activeLayer === 'a' ? 'b' : 'a';
 
-        /* インジケータとカテリ切替を更新（ホットスポットは画像読み込み後に描画） */
+        /* インジケータとカテリ切替を更新 */
         updateIndicator(index);
         updateSwitcher(scene.name);
 
-        /* 画像読み込み完了後にホットスポットを描画（naturalWidthが利用可能になるまで待機） */
-        const renderHotspotWhenReady = () => {
+        /* フェード完了後にホットスポットとカテリ切替を表示 */
+        setTimeout(() => {
             renderHotspot(scene.hotspot);
             dom.hotspotContainer.style.opacity = '1';
             dom.sceneSwitcher.style.opacity = '1';
-        };
-
-        if (nextImg.complete && nextImg.naturalWidth > 0) {
-            /* 画像がキャッシュ済みの場合、直接描画 */
-            setTimeout(renderHotspotWhenReady, 800);
-        } else {
-            /* 画像未読み込みの場合、読み込み完了を待機 */
-            nextImg.onload = () => {
-                setTimeout(renderHotspotWhenReady, 100);
-            };
-        }
+        }, 800);
     } else {
         /* アニメーションなしで直接描画：現在のアクティブレイヤに設定 */
         const currentImg = state.activeLayer === 'a' ? dom.sceneImageA : dom.sceneImageB;
         currentImg.src = scene.image;
         currentImg.alt = scene.name;
+
+        /* ★改良：画像読み込み完了を待ってから表示 */
+        await waitForImageLoad(currentImg);
+
         currentImg.classList.add('active');
         currentImg.classList.remove('inactive');
 
@@ -345,18 +446,7 @@ function renderScene(index, animate = true) {
         updateSwitcher(scene.name);
         dom.sceneSwitcher.classList.add('visible');
 
-        /* 画像読み込み完了後にホットスポットを描画 */
-        const renderHotspotWhenReady = () => {
-            renderHotspot(scene.hotspot);
-        };
-
-        if (currentImg.complete && currentImg.naturalWidth > 0) {
-            renderHotspotWhenReady();
-        } else {
-            currentImg.onload = () => {
-                renderHotspotWhenReady();
-            };
-        }
+        renderHotspot(scene.hotspot);
     }
 }
 
@@ -364,24 +454,28 @@ function prevScene() {
     if (state.isTransitioning || state.isDetailOpen) return;
     state.isTransitioning = true;
     state.currentIndex = (state.currentIndex - 1 + scenes.length) % scenes.length;
-    renderScene(state.currentIndex);
-    setTimeout(() => { state.isTransitioning = false; }, 1400);
+    renderScene(state.currentIndex).then(() => {
+        /* クロスフェード完了後にロック解除（フェード800ms＋余裕200ms） */
+        setTimeout(() => { state.isTransitioning = false; }, 1000);
+    });
 }
 
 function nextScene() {
     if (state.isTransitioning || state.isDetailOpen) return;
     state.isTransitioning = true;
     state.currentIndex = (state.currentIndex + 1) % scenes.length;
-    renderScene(state.currentIndex);
-    setTimeout(() => { state.isTransitioning = false; }, 1400);
+    renderScene(state.currentIndex).then(() => {
+        setTimeout(() => { state.isTransitioning = false; }, 1000);
+    });
 }
 
 function goToScene(index) {
     if (state.isTransitioning || state.isDetailOpen || index === state.currentIndex) return;
     state.isTransitioning = true;
     state.currentIndex = index;
-    renderScene(state.currentIndex);
-    setTimeout(() => { state.isTransitioning = false; }, 1400);
+    renderScene(state.currentIndex).then(() => {
+        setTimeout(() => { state.isTransitioning = false; }, 1000);
+    });
 }
 
 function createIndicator() {
@@ -423,8 +517,9 @@ function createSwitcher() {
             if (state.isTransitioning || state.isDetailOpen) return;
             state.isTransitioning = true;
             state.currentIndex = targetIndex;
-            renderScene(state.currentIndex);
-            setTimeout(() => { state.isTransitioning = false; }, 1400);
+            renderScene(state.currentIndex).then(() => {
+                setTimeout(() => { state.isTransitioning = false; }, 1000);
+            });
         });
         dom.sceneSwitcher.appendChild(tab);
     });
@@ -443,7 +538,7 @@ function updateSwitcher(activeCategory) {
 
 
 /* ============================================
-   6. ホットスポット描画とインタラクション
+   7. ホットスポット描画とインタラクション
    ============================================ */
 
 /**
@@ -566,7 +661,7 @@ function onHotspotClick(hotspotEl) {
 
 
 /* ============================================
-   7. 詳細パネルとアニメーション
+   8. 詳細パネルとアニメーション
    ============================================ */
 
 /**
@@ -688,7 +783,7 @@ function closeDetail() {
 
 
 /* ============================================
-   8. イベントバインドと初期化
+   9. イベントバインドと初期化
    ============================================ */
 
 function bindEvents() {
@@ -743,8 +838,15 @@ function addHintText() {
 
 /**
  * アプリケーション初期化
+ * 
+ * 起動フロー：
+ * 1. シーンカテリマッピング初期化
+ * 2. UI要素（切替、インジケータ）作成
+ * 3. ★全画像プリロード（シーン画像＋製品画像）
+ * 4. 最初のシーンをフェードイン表示
+ * 5. イベントバインド
  */
-function init() {
+async function init() {
     /* シーンカテリマッピングを初期化 */
     initSceneCategories();
 
@@ -753,6 +855,9 @@ function init() {
 
     /* 下部インジケータを作成 */
     createIndicator();
+
+    /* ★全画像をプリロード（ネットワーク遅延によるシーン切替の空白を防止） */
+    await preloadAllImages();
 
     /* 最初のシーンを描画（フェードインアニメーション付き） */
     const scene = scenes[0];
@@ -764,7 +869,10 @@ function init() {
     updateSwitcher(scene.name);
 
     /* 画像読み込み完了後にフェードインアニメーションをトリガー */
-    const fadeIn = () => {
+    const fadeIn = async () => {
+        /* 画像読み込み完了を確実に待機 */
+        await waitForImageLoad(img);
+
         /* レイヤAをactiveに切替、CSS transitionでフェードインを発火 */
         img.classList.add('active');
         img.classList.remove('inactive');
@@ -776,14 +884,7 @@ function init() {
         }, 800);
     };
 
-    if (img.complete && img.naturalWidth > 0) {
-        /* 画像がキャッシュ済みの場合、1フレーム遅延してCSS transitionを確実に発火 */
-        requestAnimationFrame(fadeIn);
-    } else {
-        img.onload = () => {
-            requestAnimationFrame(fadeIn);
-        };
-    }
+    requestAnimationFrame(fadeIn);
 
     /* イベントをバインド */
     bindEvents();
