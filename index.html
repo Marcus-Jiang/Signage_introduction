@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>デジタルサイネージ製品紹介 - 杭州海拓商通国際貿易有限公司</title>
+    <!-- スタイルシート読み込み -->
+    <link rel="stylesheet" href="css/style.css">
+    <!-- Markdown解析用marked.js読み込み -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <!-- メインコンテナ：シーン画像、ホットスポット、切替ボタンを含む -->
+    <div id="app">
+
+        <!-- シーン画像コンテナ（2層画像でクロスフェード実現） -->
+        <div id="scene-container">
+            <img id="scene-image-a" class="scene-layer inactive" src="" alt="シーン画像">
+            <img id="scene-image-b" class="scene-layer inactive" src="" alt="シーン画像">
+        </div>
+
+        <!-- シーンカテリ切替：クリックで該当カテリの最初の画像にジャンプ -->
+        <div id="scene-switcher"></div>
+
+        <!-- ホットスポットコンテナ：パルスホットスポットを動的描画 -->
+        <div id="hotspot-container"></div>
+
+        <!-- 左切替ボタン -->
+        <button id="btn-prev" class="nav-btn" aria-label="前のシーン">
+            <svg viewBox="0 0 24 24" width="36" height="36">
+                <path d="M15 4l-8 8 8 8" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </button>
+
+        <!-- 右切替ボタン -->
+        <button id="btn-next" class="nav-btn" aria-label="次のシーン">
+            <svg viewBox="0 0 24 24" width="36" height="36">
+                <path d="M9 4l8 8-8 8" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </button>
+
+        <!-- シーンインジケータ：現在のシーン番号を表示 -->
+        <div id="scene-indicator"></div>
+
+        <!-- 製品詳細パネル（リファクタリング：複数製品＋左右レイアウト対応） -->
+        <div id="detail-panel" class="hidden">
+            <div id="detail-card">
+                <!-- パネルヘッダー：戻るボタン＋シーン名 -->
+                <div id="detail-header">
+                    <button id="btn-back" aria-label="戻る">
+                        <svg viewBox="0 0 24 24" width="18" height="18">
+                            <path d="M19 12H5M12 19l-7-7 7-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span>戻る</span>
+                    </button>
+                    <h2 id="detail-title"></h2>
+                </div>
+                <!-- 製品リストコンテナ：複数製品を動的描画 -->
+                <div id="product-list"></div>
+            </div>
+        </div>
+
+        <!-- 背景オーバーレイ：パネル外クリックで閉じる -->
+        <div id="overlay" class="hidden"></div>
+
+    </div>
+
+    <!-- JavaScriptロジックファイル読み込み -->
+    <script src="js/main.js"></script>
+</body>
+</html>

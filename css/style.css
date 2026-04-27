@@ -1,0 +1,666 @@
+/* ========================================
+   デジタルサイネージ製品紹介ページ - スタイルファイル v2
+   ======================================== */
+
+/* --- グローバルリセットと基本スタイル --- */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: 'Hiragino Kaku Gothic ProN', 'Yu Gothic', 'Meiryo', 'Helvetica Neue', Arial, sans-serif;
+    background: #0a0a0a;
+    color: #ffffff;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* --- メインコンテナ --- */
+#app {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+/* --- シーン画像コンテナ --- */
+#scene-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    transition: opacity 0.5s ease, filter 0.5s ease, transform 0.5s ease;
+}
+
+/* シーン画像の薄化状態（パネル表示時） */
+#scene-container.dimmed {
+    opacity: 0.3;
+    filter: blur(4px) brightness(0.8);
+    transform: scale(1.02);
+}
+
+/* シーン画像（2層、クロスフェード用） */
+.scene-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: opacity 1.2s ease;
+}
+
+/* 表示中のレイヤ */
+.scene-layer.active {
+    opacity: 1;
+    z-index: 1;
+}
+
+/* 非表示のレイヤ（フェードイン待ち） */
+.scene-layer.inactive {
+    opacity: 0;
+    z-index: 0;
+}
+
+/* --- シーンカテリ切替 --- */
+#scene-switcher {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    display: flex;
+    gap: 4px;
+    padding: 5px;
+    background: linear-gradient(135deg, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.4));
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-radius: 30px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+    opacity: 0;
+    transition: opacity 0.4s ease;
+}
+
+#scene-switcher.visible {
+    opacity: 1;
+}
+
+/* シーンカテリボタン */
+.scene-tab {
+    padding: 7px 18px;
+    border-radius: 24px;
+    border: none;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-family: inherit;
+    white-space: nowrap;
+}
+
+.scene-tab:hover {
+    color: rgba(255, 255, 255, 0.85);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+/* アクティブなカテリボタン */
+.scene-tab.active {
+    color: #ffffff;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    box-shadow: 0 2px 12px rgba(59, 130, 246, 0.4);
+}
+
+/* --- 左右切替ボタン --- */
+.nav-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 10;
+    width: 52px;
+    height: 72px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: linear-gradient(135deg, rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.25));
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    color: rgba(255, 255, 255, 0.75);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    border-radius: 10px;
+}
+
+.nav-btn:hover {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.4), rgba(59, 130, 246, 0.2));
+    border-color: rgba(59, 130, 246, 0.4);
+    color: #ffffff;
+    transform: translateY(-50%) scale(1.08);
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.2);
+}
+
+.nav-btn:active {
+    transform: translateY(-50%) scale(0.95);
+}
+
+#btn-prev {
+    left: 16px;
+    border-radius: 0 10px 10px 0;
+}
+
+#btn-next {
+    right: 16px;
+    border-radius: 10px 0 0 10px;
+}
+
+/* --- シーンインジケータ（下部ドット） --- */
+#scene-indicator {
+    position: absolute;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 12px;
+    z-index: 10;
+    padding: 10px 20px;
+    background: rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: opacity 0.4s ease;
+}
+
+.indicator-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.indicator-dot:hover {
+    background: rgba(255, 255, 255, 0.6);
+    transform: scale(1.2);
+}
+
+.indicator-dot.active {
+    background: #3b82f6;
+    transform: scale(1.4);
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.6);
+}
+
+/* --- ホットスポットコンテナ --- */
+#hotspot-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 8;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+/* --- パルスホットスポット --- */
+.hotspot {
+    position: absolute;
+    width: 60px;
+    height: 60px;
+    transform: translate(-50%, -50%);
+    pointer-events: all;
+    cursor: pointer;
+    z-index: 8;
+}
+
+/* ホットスポット中心点：大きく・明るく・点滅付き */
+.hotspot-core {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 18px;
+    height: 18px;
+    transform: translate(-50%, -50%);
+    background: radial-gradient(circle, #ffffff 20%, #3b82f6 70%, rgba(59, 130, 246, 0.6));
+    border-radius: 50%;
+    box-shadow:
+        0 0 12px rgba(59, 130, 246, 0.8),
+        0 0 24px rgba(59, 130, 246, 0.4),
+        0 0 6px rgba(255, 255, 255, 0.9);
+    transition: all 0.3s ease;
+    z-index: 2;
+    animation: core-pulse 1.5s ease-in-out infinite;
+}
+
+/* 中心点パルス点滅アニメーション */
+@keyframes core-pulse {
+    0%, 100% {
+        transform: translate(-50%, -50%) scale(1);
+        box-shadow:
+            0 0 12px rgba(59, 130, 246, 0.8),
+            0 0 24px rgba(59, 130, 246, 0.4),
+            0 0 6px rgba(255, 255, 255, 0.9);
+    }
+    50% {
+        transform: translate(-50%, -50%) scale(1.35);
+        box-shadow:
+            0 0 18px rgba(59, 130, 246, 1),
+            0 0 36px rgba(59, 130, 246, 0.6),
+            0 0 9px rgba(255, 255, 255, 1);
+    }
+}
+
+.hotspot:hover .hotspot-core {
+    background: radial-gradient(circle, #ffffff 30%, #60a5fa 80%);
+    transform: translate(-50%, -50%) scale(1.4);
+    box-shadow:
+        0 0 20px rgba(59, 130, 246, 1),
+        0 0 42px rgba(59, 130, 246, 0.7),
+        0 0 12px rgba(255, 255, 255, 1);
+    animation: none;
+}
+
+/* パルス衝撃波紋リング */
+.hotspot-ring {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 18px;
+    height: 18px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    border: 3px solid rgba(59, 130, 246, 0.8);
+    animation: pulse-impact 2s ease-out infinite;
+    z-index: 1;
+}
+
+/* 第2層波紋、遅延アニメーション */
+.hotspot-ring.delay {
+    animation-delay: 0.8s;
+}
+
+/* パルス衝撃波紋アニメーションキーフレーム：より広範囲・より強いインパクト */
+@keyframes pulse-impact {
+    0% {
+        width: 18px;
+        height: 18px;
+        opacity: 1;
+        border-width: 4px;
+        border-color: rgba(59, 130, 246, 0.9);
+    }
+    30% {
+        opacity: 0.8;
+        border-color: rgba(96, 165, 250, 0.7);
+    }
+    100% {
+        width: 75px;
+        height: 75px;
+        opacity: 0;
+        border-width: 1px;
+        border-color: rgba(147, 197, 253, 0);
+    }
+}
+
+/* --- 背景オーバーレイ --- */
+#overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 14;
+    background: rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    cursor: pointer;
+}
+
+#overlay.visible {
+    opacity: 1;
+}
+
+/* ========================================
+   製品詳細パネル（v2リファクタリング）
+   ======================================== */
+
+/* パネル外側コンテナ */
+#detail-panel {
+    position: absolute;
+    z-index: 15;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    /* 中央配置 */
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+#detail-panel.visible {
+    opacity: 1;
+    pointer-events: all;
+}
+
+/* パネルカード */
+#detail-card {
+    width: 980px;
+    max-height: 85vh;
+    background: rgba(255, 255, 255, 0.97);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow:
+        0 30px 80px rgba(0, 0, 0, 0.5),
+        0 0 0 1px rgba(255, 255, 255, 0.15),
+        0 0 60px rgba(59, 130, 246, 0.1);
+    transform: scale(0.85);
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    color: #1a1a2e;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+/* パネル上部装飾バー */
+#detail-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #3b82f6, #60a5fa, #93c5fd);
+    border-radius: 16px 16px 0 0;
+    z-index: 1;
+}
+
+#detail-panel.visible #detail-card {
+    transform: scale(1);
+}
+
+/* --- パネルヘッダー --- */
+#detail-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    flex-shrink: 0;
+}
+
+/* 戻るボタン */
+#btn-back {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    border: none;
+    background: rgba(59, 130, 246, 0.08);
+    color: #3b82f6;
+    padding: 7px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.25s ease;
+    font-family: inherit;
+    flex-shrink: 0;
+}
+
+#btn-back:hover {
+    background: rgba(59, 130, 246, 0.15);
+    transform: translateX(-2px);
+}
+
+#btn-back svg {
+    transition: transform 0.25s ease;
+}
+
+#btn-back:hover svg {
+    transform: translateX(-2px);
+}
+
+/* パネルタイトル */
+#detail-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1a1a2e;
+    line-height: 1.4;
+    flex: 1;
+}
+
+/* --- 製品リストコンテナ（スクロール可能） --- */
+#product-list {
+    overflow-y: auto;
+    flex: 1;
+    padding: 0;
+    /* カスタムスクロールバー */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(59, 130, 246, 0.3) transparent;
+}
+
+#product-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+#product-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#product-list::-webkit-scrollbar-thumb {
+    background: rgba(59, 130, 246, 0.3);
+    border-radius: 3px;
+}
+
+#product-list::-webkit-scrollbar-thumb:hover {
+    background: rgba(59, 130, 246, 0.5);
+}
+
+/* --- 製品項目（左画像・右テキストレイアウト） --- */
+.product-item {
+    display: flex;
+    gap: 20px;
+    padding: 20px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    align-items: flex-start;
+}
+
+/* 最後の製品項目は下部区切り線なし */
+.product-item:last-child {
+    border-bottom: none;
+}
+
+/* 製品画像エリア（左側） */
+.product-image-col {
+    flex-shrink: 0;
+    width: 400px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(145deg, #f0f4f8, #e8edf3);
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    padding: 8px;
+    align-self: stretch;
+    min-height: 160px;
+}
+
+.product-image-col img {
+    width: 100%;
+    height: auto;
+    max-height: 320px;
+    object-fit: contain;
+    display: block;
+}
+
+/* 製品詳細エリア（右側） */
+.product-detail-col {
+    flex: 1;
+    min-width: 0;
+}
+
+/* 製品名 */
+.product-name {
+    font-size: 17px;
+    font-weight: 700;
+    color: #1a1a2e;
+    margin-bottom: 10px;
+    position: relative;
+    padding-bottom: 8px;
+}
+
+/* 製品名下部装飾ライン */
+.product-name::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 36px;
+    height: 3px;
+    background: linear-gradient(90deg, #3b82f6, #93c5fd);
+    border-radius: 2px;
+}
+
+/* ========================================
+   Markdown描画スタイル
+   ======================================== */
+
+.product-description {
+    font-size: 13px;
+    line-height: 1.8;
+    color: #444;
+    letter-spacing: 0.2px;
+    margin-top: 8px;
+}
+
+/* Markdownリストスタイル */
+.product-description ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.product-description ul li {
+    padding: 4px 0 4px 16px;
+    position: relative;
+    line-height: 1.7;
+}
+
+/* リスト項目前のブルードット */
+.product-description ul li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 11px;
+    width: 6px;
+    height: 6px;
+    background: #3b82f6;
+    border-radius: 50%;
+}
+
+/* Markdown太字 */
+.product-description strong {
+    color: #1a1a2e;
+    font-weight: 600;
+}
+
+/* Markdownテーブルスタイル */
+.product-description table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+    font-size: 12.5px;
+    background: #f8fafc;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+}
+
+.product-description thead {
+    background: linear-gradient(135deg, #eff6ff, #dbeafe);
+}
+
+.product-description th {
+    padding: 8px 12px;
+    text-align: left;
+    font-weight: 600;
+    color: #1e40af;
+    border-bottom: 2px solid #bfdbfe;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+}
+
+.product-description td {
+    padding: 7px 12px;
+    border-bottom: 1px solid #e2e8f0;
+    color: #374151;
+}
+
+.product-description tr:last-child td {
+    border-bottom: none;
+}
+
+.product-description tr:hover td {
+    background: rgba(59, 130, 246, 0.04);
+}
+
+/* --- 非表示ユーティリティクラス --- */
+.hidden {
+    display: none !important;
+}
+
+/* --- シーン切替遷移アニメーション --- */
+.scene-transitioning #scene-switcher {
+    opacity: 0 !important;
+}
+
+.scene-transitioning .hotspot {
+    opacity: 0;
+}
+
+/* --- ホットスポット出現アニメーション --- */
+.hotspot {
+    opacity: 0;
+    animation: hotspot-appear 0.5s ease forwards;
+}
+
+@keyframes hotspot-appear {
+    0% {
+        opacity: 0;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+/* --- ヒントテキスト --- */
+.hint-text {
+    position: absolute;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 13px;
+    letter-spacing: 1px;
+    z-index: 6;
+    animation: hint-fade 3s ease-in-out infinite;
+    pointer-events: none;
+}
+
+@keyframes hint-fade {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 0.8; }
+}
