@@ -34,130 +34,130 @@
 const scenes = [
     {
         name: 'コンビニエンスストア',
-        image: '场景图/便利店场景/便利店场景1.png',
+        image: '场景图/便利店场景/便利店场景1.webp',
         hotspot: { x: 30, y: 25 },
         products: [
             {
                 name: '商用壁掛け液晶ディスプレイ',
-                image: '产品图/商用壁挂液晶显示器.png',
+                image: '产品图/商用壁挂液晶显示器.webp',
                 descriptionFile: '产品描述/商用壁挂液晶显示器.md'
             }
         ]
     },
     {
         name: 'スーパーマーケット',
-        image: '场景图/超市场景/超市场景1.png',
+        image: '场景图/超市场景/超市场景1.webp',
         hotspot: { x: 29, y: 65 },
         products: [
             {
                 name: '電子サイネージスタンド',
-                image: '产品图/电子水牌.png',
+                image: '产品图/电子水牌.webp',
                 descriptionFile: '产品描述/电子水牌.md'
             }
         ]
     },
     {
         name: 'スーパーマーケット',
-        image: '场景图/超市场景/超市场景2.png',
+        image: '场景图/超市场景/超市场景2.webp',
         hotspot: { x: 56, y: 40 },
         products: [
             {
                 name: '商用壁掛け液晶ディスプレイ',
-                image: '产品图/商用壁挂液晶显示器.png',
+                image: '产品图/商用壁挂液晶显示器.webp',
                 descriptionFile: '产品描述/商用壁挂液晶显示器.md'
             }
         ]
     },
     {
         name: 'スーパーマーケット',
-        image: '场景图/超市场景/超市场景3.png',
+        image: '场景图/超市场景/超市场景3.webp',
         hotspot: { x: 40, y: 29 },
         products: [
             {
                 name: '商用バーライト液晶ディスプレイ',
-                image: '产品图/商用条形液晶显示器.png',
+                image: '产品图/商用条形液晶显示器.webp',
                 descriptionFile: '产品描述/商用条形液晶显示器.md'
             }
         ]
     },
     {
         name: 'スーパーマーケット',
-        image: '场景图/超市场景/超市场景4.png',
+        image: '场景图/超市场景/超市场景4.webp',
         hotspot: { x: 63, y: 35 },
         products: [
             {
                 name: '屋内両面吊り下げサイネージ',
-                image: '产品图/室内双面吊装标牌.png',
+                image: '产品图/室内双面吊装标牌.webp',
                 descriptionFile: '产品描述/室内双面吊装标牌.md'
             }
         ]
     },
     {
         name: 'イベント会場',
-        image: '场景图/集会场景/集会场景1.png',
+        image: '场景图/集会场景/集会场景1.webp',
         hotspot: { x: 72, y: 58 },
         products: [
             {
                 name: '屋外可搬型デジタルサイネージ',
-                image: '产品图/室外可移动广告机.png',
+                image: '产品图/室外可移动广告机.webp',
                 descriptionFile: '产品描述/室外可移动广告机.md'
             }
         ]
     },
     {
         name: 'ホテル',
-        image: '场景图/酒店场景/酒店场景1.png',
+        image: '场景图/酒店场景/酒店场景1.webp',
         hotspot: { x: 70, y: 42 },
         products: [
             {
                 name: '屋内自立型デジタルサイネージ',
-                image: '产品图/室内立式广告机.png',
+                image: '产品图/室内立式广告机.webp',
                 descriptionFile: '产品描述/室内立式广告机.md'
             }
         ]
     },
     {
         name: 'ファストフード店',
-        image: '场景图/快餐店场景/快餐店场景1.png',
+        image: '场景图/快餐店场景/快餐店场景1.webp',
         hotspot: { x: 55, y: 32 },
         products: [
             {
                 name: '商用壁掛け液晶ディスプレイ',
-                image: '产品图/商用壁挂液晶显示器.png',
+                image: '产品图/商用壁挂液晶显示器.webp',
                 descriptionFile: '产品描述/商用壁挂液晶显示器.md'
             }
         ]
     },
     {
         name: 'ファストフード店',
-        image: '场景图/快餐店场景/快餐店场景2.png',
+        image: '场景图/快餐店场景/快餐店场景2.webp',
         hotspot: { x: 59, y: 48 },
         products: [
             {
                 name: 'セルフオーダー端末 - タイプ1',
-                image: '产品图/自助点单机1.png',
+                image: '产品图/自助点单机1.webp',
                 descriptionFile: '产品描述/自助点单机1.md'
             },
             {
                 name: 'セルフオーダー端末 - タイプ2',
-                image: '产品图/自助点单机2.png',
+                image: '产品图/自助点单机2.webp',
                 descriptionFile: '产品描述/自助点单机2.md'
             },
             {
                 name: 'セルフオーダー端末 - タイプ3',
-                image: '产品图/自助点单机3.png',
+                image: '产品图/自助点单机3.webp',
                 descriptionFile: '产品描述/自助点单机3.md'
             }
         ]
     },
     {
         name: 'その他',
-        image: '场景图/其他场景/其他场景1.png',
+        image: '场景图/其他场景/其他场景1.webp',
         hotspot: { x: 32, y: 45 },
         products: [
             {
                 name: '屋外自立型デジタルサイネージ',
-                image: '产品图/室外立式广告机.png',
+                image: '产品图/室外立式广告机.webp',
                 descriptionFile: '产品描述/室外立式广告机.md'
             }
         ]
