@@ -500,9 +500,8 @@ html, body {
 
 .product-image-col img {
     width: 100%;
-    height: auto;
-    max-height: 320px;
-    object-fit: contain;
+    height: 100%;
+    object-fit: cover;
     display: block;
 }
 
