@@ -1,17 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# 備份ファイル
+*.bak
+mapping.json.bak
+
+# IDE
+.trae/
+.vscode/
+.idea/
+
 # OS
 .DS_Store
 Thumbs.db
-Desktop.ini
+desktop.ini
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Python
-__pycache__/
-*.pyc
-
-# Logs
+# ログ
 *.log

@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  digital-signage:
+    build: .
+    container_name: digital-signage-app
+    ports:
+      - "8082:8082"
+    volumes:
+      - ./mapping.json:/app/mapping.json
+      - ./场景图:/app/场景图
+      - ./产品图:/app/产品图
+      - ./产品描述:/app/产品描述
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1

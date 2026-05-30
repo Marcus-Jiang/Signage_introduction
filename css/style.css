@@ -1,5 +1,6 @@
 /* ========================================
-   デジタルサイネージ製品紹介ページ - スタイルファイル v2
+   デジタルサイネージ製品紹介ページ - スタイルファイル v3
+   全面UI最適化版：言語切替器・骨格スクリーン・エラー状態・アニメーション強化
    ======================================== */
 
 /* --- グローバルリセットと基本スタイル --- */
@@ -28,14 +29,70 @@ html, body {
     overflow: hidden;
 }
 
-/* --- シーン画像コンテナ --- */
+/* ========================================
+   言語切替器（新規追加）
+   ======================================== */
+
+/* 言語切替器：右上固定・毛ガラス背景 */
+#lang-switcher {
+    position: absolute;
+    top: 16px;
+    right: 20px;
+    z-index: 30;
+    display: flex;
+    gap: 2px;
+    padding: 4px;
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* 言語ボタン共通スタイル */
+.lang-btn {
+    padding: 5px 14px;
+    border-radius: 16px;
+    border: none;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    white-space: nowrap;
+}
+
+/* 言語ボタンホバー状態 */
+.lang-btn:hover {
+    color: rgba(255, 255, 255, 0.8);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+/* アクティブな言語ボタン：主題ブルー強調 */
+.lang-btn.active {
+    color: #ffffff;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.5);
+}
+
+/* ========================================
+   シーン画像レイヤ
+   ======================================== */
+
+/* シーン画像コンテナ */
 #scene-container {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    transition: opacity 0.5s ease, filter 0.5s ease, transform 0.5s ease;
+    transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+                filter 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+                transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* シーン画像の薄化状態（パネル表示時） */
@@ -54,7 +111,7 @@ html, body {
     height: 100%;
     object-fit: cover;
     display: block;
-    transition: opacity 1.2s ease;
+    transition: opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* 表示中のレイヤ */
@@ -69,59 +126,73 @@ html, body {
     z-index: 0;
 }
 
-/* --- シーンカテリ切替 --- */
+/* ========================================
+   シーンカテゴリ切替タブ
+   ======================================== */
+
+/* シーンカテゴリ切替コンテナ：毛ガラス効果強化 */
 #scene-switcher {
+    /* 暂时隐藏顶部导航栏，与底部progressBar功能重复 */
+    display: none !important;
     position: absolute;
     top: 20px;
     left: 50%;
     transform: translateX(-50%);
     z-index: 10;
-    display: flex;
-    gap: 4px;
+    /* display: flex; -- 原始值，恢复时改回 */
+    gap: 3px;
     padding: 5px;
-    background: linear-gradient(135deg, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.4));
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    border-radius: 30px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+    background: linear-gradient(135deg, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.45));
+    backdrop-filter: blur(16px) saturate(1.5);
+    -webkit-backdrop-filter: blur(16px) saturate(1.5);
+    border-radius: 32px;
+    border: 1px solid rgba(255, 255, 255, 0.13);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.08);
     opacity: 0;
-    transition: opacity 0.4s ease;
+    transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 #scene-switcher.visible {
     opacity: 1;
 }
 
-/* シーンカテリボタン */
+/* シーンカテゴリボタン：精緻なタブスタイル */
 .scene-tab {
-    padding: 7px 18px;
-    border-radius: 24px;
+    padding: 7px 20px;
+    border-radius: 26px;
     border: none;
     background: transparent;
     color: rgba(255, 255, 255, 0.55);
     font-size: 13px;
     font-weight: 500;
-    letter-spacing: 1px;
+    letter-spacing: 0.8px;
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     font-family: inherit;
     white-space: nowrap;
 }
 
+/* タブホバー：柔らかな浮き上がり効果 */
 .scene-tab:hover {
-    color: rgba(255, 255, 255, 0.85);
-    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.88);
+    background: rgba(255, 255, 255, 0.09);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
-/* アクティブなカテリボタン */
+/* アクティブなカテゴリボタン：より滑らかな遷移 */
 .scene-tab.active {
     color: #ffffff;
     background: linear-gradient(135deg, #3b82f6, #2563eb);
-    box-shadow: 0 2px 12px rgba(59, 130, 246, 0.4);
+    box-shadow: 0 2px 12px rgba(59, 130, 246, 0.45), 0 1px 0 rgba(255, 255, 255, 0.15) inset;
+    transform: translateY(0);
 }
 
-/* --- 左右切替ボタン --- */
+/* ========================================
+   左右ナビゲーションボタン
+   ======================================== */
+
+/* ナビゲーションボタン共通：毛ガラス効果強化 */
 .nav-btn {
     position: absolute;
     top: 50%;
@@ -130,79 +201,346 @@ html, body {
     width: 52px;
     height: 72px;
     border: 1px solid rgba(255, 255, 255, 0.15);
-    background: linear-gradient(135deg, rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.25));
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    color: rgba(255, 255, 255, 0.75);
+    background: linear-gradient(135deg, rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.28));
+    backdrop-filter: blur(14px) saturate(1.2);
+    -webkit-backdrop-filter: blur(14px) saturate(1.2);
+    color: rgba(255, 255, 255, 0.78);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.3s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     border-radius: 10px;
 }
 
+/* ナビゲーションボタンホバー：発光効果 */
 .nav-btn:hover {
-    background: linear-gradient(135deg, rgba(59, 130, 246, 0.4), rgba(59, 130, 246, 0.2));
-    border-color: rgba(59, 130, 246, 0.4);
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.45), rgba(59, 130, 246, 0.25));
+    border-color: rgba(59, 130, 246, 0.45);
     color: #ffffff;
     transform: translateY(-50%) scale(1.08);
-    box-shadow: 0 0 20px rgba(59, 130, 246, 0.2);
+    box-shadow: 0 0 24px rgba(59, 130, 246, 0.3), 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
 .nav-btn:active {
     transform: translateY(-50%) scale(0.95);
 }
 
+/* 前ページボタン（左側） */
 #btn-prev {
     left: 16px;
     border-radius: 0 10px 10px 0;
 }
 
+/* 次ページボタン（右側） */
 #btn-next {
     right: 16px;
     border-radius: 10px 0 0 10px;
 }
 
-/* --- シーンインジケータ（下部ドット） --- */
+/* ========================================
+   シーンインジケータ（底部ナビゲーション - 3プラン対応）
+   ======================================== */
+
+/* インジケータコンテナ共通スタイル */
 #scene-indicator {
     position: absolute;
     bottom: 28px;
     left: 50%;
     transform: translateX(-50%);
-    display: flex;
-    gap: 12px;
     z-index: 10;
-    padding: 10px 20px;
-    background: rgba(0, 0, 0, 0.35);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border-radius: 24px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    transition: opacity 0.4s ease;
+    transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.indicator-dot {
+/* ========================================
+   方案A: groupNumber（分组缩略+数字）
+   ======================================== */
+
+.nav-group-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 16px;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-radius: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    height: 40px;
+    box-sizing: border-box;
+}
+
+/* 分组导航箭头按钮 */
+.nav-group-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.75);
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    flex-shrink: 0;
+    padding: 0;
+}
+
+.nav-group-arrow:hover {
+    background: rgba(59, 130, 246, 0.4);
+    color: #ffffff;
+    transform: scale(1.1);
+}
+
+.nav-group-arrow:active {
+    transform: scale(0.92);
+}
+
+.nav-group-arrow svg {
+    display: block;
+}
+
+/* 中间内容区 */
+.nav-group-content {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+}
+
+/* 分类名 */
+.nav-group-category {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+}
+
+/* 序号 */
+.nav-group-counter {
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 0.3px;
+    min-width: 28px;
+    text-align: center;
+}
+
+/* ========================================
+   方案B: slidingDots（滑动窗口圆点）
+   ======================================== */
+
+.nav-dots-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 20px;
+    background: rgba(0, 0, 0, 0.38);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-radius: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    height: 40px;
+    box-sizing: border-box;
+}
+
+/* 圆点轨道 */
+.nav-dots-track {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: center;
+    width: 120px; /* 固定宽度，防止切换时抖动 */
+}
+
+/* 单个圆点 */
+.nav-dots-dot {
     width: 8px;
     height: 8px;
     border-radius: 50%;
     background: rgba(255, 255, 255, 0.3);
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                background 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    flex-shrink: 0;
 }
 
-.indicator-dot:hover {
-    background: rgba(255, 255, 255, 0.6);
-    transform: scale(1.2);
+.nav-dots-dot:hover {
+    background: rgba(255, 255, 255, 0.65);
 }
 
-.indicator-dot.active {
+/* 活跃圆点 */
+.nav-dots-dot.active {
     background: #3b82f6;
-    transform: scale(1.4);
-    box-shadow: 0 0 10px rgba(59, 130, 246, 0.6);
+    box-shadow: 0 0 8px rgba(59, 130, 246, 0.7);
 }
 
-/* --- ホットスポットコンテナ --- */
+/* ========================================
+   方案C: progressBar（进度条+分类标签）
+   ======================================== */
+
+.nav-progress-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 16px 6px;
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    height: 40px;
+    box-sizing: border-box;
+    position: relative;
+}
+
+/* 分类标签按钮 */
+.nav-progress-label {
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    white-space: nowrap;
+    transition: color 0.2s ease;
+    font-family: inherit;
+    line-height: 1;
+}
+
+.nav-progress-label:hover {
+    color: #60a5fa;
+}
+
+/* 进度条外框 */
+.nav-progress-bar {
+    width: 180px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+/* 进度条填充 */
+.nav-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #3b82f6, #60a5fa);
+    border-radius: 2px;
+    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    min-width: 4px;
+}
+
+/* 分类弹窗 */
+.nav-category-popup {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    min-width: 160px;
+    z-index: 20;
+    animation: popup-appear 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes popup-appear {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(6px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0) scale(1);
+    }
+}
+
+/* 分类弹窗中的每个分类项 */
+.nav-category-item {
+    display: block;
+    width: 100%;
+    padding: 7px 14px;
+    border: none;
+    border-radius: 10px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 13px;
+    font-weight: 400;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: inherit;
+    white-space: nowrap;
+}
+
+.nav-category-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+}
+
+.nav-category-item.active {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: #ffffff;
+    font-weight: 500;
+}
+
+/* ========================================
+   响应式适配
+   ======================================== */
+
+@media (max-width: 600px) {
+    /* 方案A: 缩小间距和字号 */
+    .nav-group-container {
+        gap: 8px;
+        padding: 5px 12px;
+    }
+    .nav-group-category {
+        font-size: 11px;
+    }
+    .nav-group-counter {
+        font-size: 11px;
+    }
+    .nav-group-arrow {
+        width: 24px;
+        height: 24px;
+    }
+    .nav-group-arrow svg {
+        width: 16px;
+        height: 16px;
+    }
+
+    /* 方案B: 缩小圆点间距 */
+    .nav-dots-track {
+        gap: 6px;
+        width: 100px;
+    }
+
+    /* 方案C: 缩小进度条和字号 */
+    .nav-progress-bar {
+        width: 140px;
+    }
+    .nav-progress-label {
+        font-size: 11px;
+    }
+}
+
+/* ========================================
+   ホットスポット
+   ======================================== */
+
+/* ホットスポットコンテナ：複数ホットスポット対応 */
 #hotspot-container {
     position: absolute;
     top: 0;
@@ -211,10 +549,10 @@ html, body {
     height: 100%;
     z-index: 8;
     pointer-events: none;
-    transition: opacity 0.3s ease;
+    transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* --- パルスホットスポット --- */
+/* パルスホットスポット本体 */
 .hotspot {
     position: absolute;
     width: 60px;
@@ -223,9 +561,30 @@ html, body {
     pointer-events: all;
     cursor: pointer;
     z-index: 8;
+    opacity: 0;
+    animation: hotspot-appear 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
-/* ホットスポット中心点：大きく・明るく・点滅付き */
+/* 複数ホットスポット：nth-childでアニメーション遅延を分散 */
+.hotspot:nth-child(1) { animation-delay: 0s; }
+.hotspot:nth-child(2) { animation-delay: 0.12s; }
+.hotspot:nth-child(3) { animation-delay: 0.24s; }
+.hotspot:nth-child(4) { animation-delay: 0.36s; }
+.hotspot:nth-child(5) { animation-delay: 0.48s; }
+
+/* ホットスポット出現アニメーション */
+@keyframes hotspot-appear {
+    0% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.6);
+    }
+    100% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+}
+
+/* ホットスポット中心点：白+ブルーのグラデーション */
 .hotspot-core {
     position: absolute;
     top: 50%;
@@ -236,39 +595,47 @@ html, body {
     background: radial-gradient(circle, #ffffff 20%, #3b82f6 70%, rgba(59, 130, 246, 0.6));
     border-radius: 50%;
     box-shadow:
-        0 0 12px rgba(59, 130, 246, 0.8),
-        0 0 24px rgba(59, 130, 246, 0.4),
-        0 0 6px rgba(255, 255, 255, 0.9);
-    transition: all 0.3s ease;
+        0 0 10px rgba(59, 130, 246, 0.75),
+        0 0 20px rgba(59, 130, 246, 0.35),
+        0 0 5px rgba(255, 255, 255, 0.85);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     z-index: 2;
-    animation: core-pulse 1.5s ease-in-out infinite;
+    animation: core-pulse 2s ease-in-out infinite;
 }
 
-/* 中心点パルス点滅アニメーション */
+/* 複数ホットスポット：中心点のパルスタイミングをずらす */
+.hotspot:nth-child(1) .hotspot-core { animation-delay: 0s; }
+.hotspot:nth-child(2) .hotspot-core { animation-delay: 0.5s; }
+.hotspot:nth-child(3) .hotspot-core { animation-delay: 1.0s; }
+.hotspot:nth-child(4) .hotspot-core { animation-delay: 1.5s; }
+.hotspot:nth-child(5) .hotspot-core { animation-delay: 0.25s; }
+
+/* 中心点パルス：スケール変化を柔らかく抑制 */
 @keyframes core-pulse {
     0%, 100% {
         transform: translate(-50%, -50%) scale(1);
         box-shadow:
-            0 0 12px rgba(59, 130, 246, 0.8),
-            0 0 24px rgba(59, 130, 246, 0.4),
-            0 0 6px rgba(255, 255, 255, 0.9);
+            0 0 10px rgba(59, 130, 246, 0.75),
+            0 0 20px rgba(59, 130, 246, 0.35),
+            0 0 5px rgba(255, 255, 255, 0.85);
     }
     50% {
-        transform: translate(-50%, -50%) scale(1.35);
+        transform: translate(-50%, -50%) scale(1.22);
         box-shadow:
-            0 0 18px rgba(59, 130, 246, 1),
-            0 0 36px rgba(59, 130, 246, 0.6),
-            0 0 9px rgba(255, 255, 255, 1);
+            0 0 15px rgba(59, 130, 246, 0.95),
+            0 0 30px rgba(59, 130, 246, 0.5),
+            0 0 8px rgba(255, 255, 255, 0.95);
     }
 }
 
+/* ホバー時：アニメーション停止・発光強化 */
 .hotspot:hover .hotspot-core {
     background: radial-gradient(circle, #ffffff 30%, #60a5fa 80%);
-    transform: translate(-50%, -50%) scale(1.4);
+    transform: translate(-50%, -50%) scale(1.35);
     box-shadow:
-        0 0 20px rgba(59, 130, 246, 1),
-        0 0 42px rgba(59, 130, 246, 0.7),
-        0 0 12px rgba(255, 255, 255, 1);
+        0 0 18px rgba(59, 130, 246, 1),
+        0 0 38px rgba(59, 130, 246, 0.65),
+        0 0 10px rgba(255, 255, 255, 1);
     animation: none;
 }
 
@@ -281,39 +648,51 @@ html, body {
     height: 18px;
     transform: translate(-50%, -50%);
     border-radius: 50%;
-    border: 3px solid rgba(59, 130, 246, 0.8);
-    animation: pulse-impact 2s ease-out infinite;
+    border: 2.5px solid rgba(59, 130, 246, 0.75);
+    animation: pulse-impact 2.4s cubic-bezier(0.2, 0.6, 0.4, 1) infinite;
     z-index: 1;
 }
 
-/* 第2層波紋、遅延アニメーション */
+/* 第2層波紋：遅延でより優雅な重なり */
 .hotspot-ring.delay {
-    animation-delay: 0.8s;
+    animation-delay: 0.9s;
 }
 
-/* パルス衝撃波紋アニメーションキーフレーム：より広範囲・より強いインパクト */
+/* 複数ホットスポット：波紋タイミング分散 */
+.hotspot:nth-child(2) .hotspot-ring { animation-delay: 0.4s; }
+.hotspot:nth-child(2) .hotspot-ring.delay { animation-delay: 1.3s; }
+.hotspot:nth-child(3) .hotspot-ring { animation-delay: 0.8s; }
+.hotspot:nth-child(3) .hotspot-ring.delay { animation-delay: 1.7s; }
+.hotspot:nth-child(4) .hotspot-ring { animation-delay: 1.2s; }
+.hotspot:nth-child(4) .hotspot-ring.delay { animation-delay: 2.1s; }
+
+/* パルス衝撃波紋アニメーション：より優雅な拡散 */
 @keyframes pulse-impact {
     0% {
         width: 18px;
         height: 18px;
-        opacity: 1;
-        border-width: 4px;
-        border-color: rgba(59, 130, 246, 0.9);
+        opacity: 0.9;
+        border-width: 3px;
+        border-color: rgba(59, 130, 246, 0.85);
     }
-    30% {
-        opacity: 0.8;
-        border-color: rgba(96, 165, 250, 0.7);
+    40% {
+        opacity: 0.6;
+        border-color: rgba(96, 165, 250, 0.6);
     }
     100% {
-        width: 75px;
-        height: 75px;
+        width: 68px;
+        height: 68px;
         opacity: 0;
         border-width: 1px;
         border-color: rgba(147, 197, 253, 0);
     }
 }
 
-/* --- 背景オーバーレイ --- */
+/* ========================================
+   背景オーバーレイ
+   ======================================== */
+
+/* 背景オーバーレイ：パネル外クリックで閉じる */
 #overlay {
     position: absolute;
     top: 0;
@@ -321,9 +700,9 @@ html, body {
     width: 100%;
     height: 100%;
     z-index: 14;
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(0, 0, 0, 0.52);
     opacity: 0;
-    transition: opacity 0.4s ease;
+    transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     cursor: pointer;
 }
 
@@ -332,17 +711,16 @@ html, body {
 }
 
 /* ========================================
-   製品詳細パネル（v2リファクタリング）
+   製品詳細パネル（v3最適化）
    ======================================== */
 
-/* パネル外側コンテナ */
+/* パネル外側コンテナ：中央配置 */
 #detail-panel {
     position: absolute;
     z-index: 15;
     pointer-events: none;
     opacity: 0;
-    transition: opacity 0.4s ease;
-    /* 中央配置 */
+    transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
@@ -353,28 +731,31 @@ html, body {
     pointer-events: all;
 }
 
-/* パネルカード */
+/* 弹窗卡片：几乎占满屏幕，四边保留30px间距 */
 #detail-card {
-    width: 980px;
-    max-height: 85vh;
+    /* 宽度：取视口95%与1300px中的较小值，确保左右各留约30px */
+    width: min(95vw, 1300px);
+    /* 高度：取视口95%与920px中的较小值，确保上下各留约30px */
+    max-height: min(95vh, 920px);
     background: rgba(255, 255, 255, 0.97);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-radius: 16px;
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border-radius: 20px;
     overflow: hidden;
     box-shadow:
-        0 30px 80px rgba(0, 0, 0, 0.5),
-        0 0 0 1px rgba(255, 255, 255, 0.15),
-        0 0 60px rgba(59, 130, 246, 0.1);
-    transform: scale(0.85);
-    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        0 40px 90px rgba(0, 0, 0, 0.55),
+        0 20px 40px rgba(0, 0, 0, 0.3),
+        0 0 0 1px rgba(255, 255, 255, 0.18),
+        0 0 80px rgba(59, 130, 246, 0.08);
+    transform: scale(0.86) translateY(10px);
+    transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
     color: #1a1a2e;
     position: relative;
     display: flex;
     flex-direction: column;
 }
 
-/* パネル上部装飾バー */
+/* パネル上部装飾バー：グラデーション */
 #detail-card::before {
     content: '';
     position: absolute;
@@ -382,50 +763,68 @@ html, body {
     left: 0;
     right: 0;
     height: 4px;
-    background: linear-gradient(90deg, #3b82f6, #60a5fa, #93c5fd);
-    border-radius: 16px 16px 0 0;
+    background: linear-gradient(90deg, #3b82f6, #60a5fa, #93c5fd, #60a5fa);
+    background-size: 200% 100%;
+    border-radius: 20px 20px 0 0;
     z-index: 1;
+    animation: bar-shimmer 4s linear infinite;
 }
 
+/* 上部バーのシマーアニメーション */
+@keyframes bar-shimmer {
+    0% { background-position: 0% 0; }
+    100% { background-position: 200% 0; }
+}
+
+/* パネル表示時：弾性スケールイン */
 #detail-panel.visible #detail-card {
-    transform: scale(1);
+    transform: scale(1) translateY(0);
 }
 
-/* --- パネルヘッダー --- */
+/* ========================================
+   パネルヘッダー
+   ======================================== */
+
+/* 头部容器：固定在弹窗顶部，不随内容滚动，确保关闭按钮始终可见 */
 #detail-header {
     display: flex;
     align-items: center;
     gap: 16px;
-    padding: 16px 20px;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-    flex-shrink: 0;
+    padding: 18px 24px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+    background: rgba(248, 250, 252, 0.95);
+    flex-shrink: 0;   /* 头部不被压缩，始终显示 */
+    position: sticky;
+    top: 0;
+    z-index: 2;
 }
 
-/* 戻るボタン */
+/* 戻るボタン：柔らかなブルー */
 #btn-back {
     display: flex;
     align-items: center;
     gap: 5px;
     border: none;
-    background: rgba(59, 130, 246, 0.08);
+    background: rgba(59, 130, 246, 0.09);
     color: #3b82f6;
     padding: 7px 14px;
-    border-radius: 8px;
+    border-radius: 9px;
     cursor: pointer;
     font-size: 13px;
     font-weight: 500;
-    transition: all 0.25s ease;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     font-family: inherit;
     flex-shrink: 0;
 }
 
 #btn-back:hover {
-    background: rgba(59, 130, 246, 0.15);
+    background: rgba(59, 130, 246, 0.16);
     transform: translateX(-2px);
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);
 }
 
 #btn-back svg {
-    transition: transform 0.25s ease;
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 #btn-back:hover svg {
@@ -439,20 +838,25 @@ html, body {
     color: #1a1a2e;
     line-height: 1.4;
     flex: 1;
+    letter-spacing: 0.3px;
 }
 
-/* --- 製品リストコンテナ（スクロール可能） --- */
+/* ========================================
+   製品リストコンテナ（スクロール可能）
+   ======================================== */
+
+/* スクロール領域：カスタムスクロールバー */
 #product-list {
     overflow-y: auto;
     flex: 1;
     padding: 0;
-    /* カスタムスクロールバー */
+    /* Webkit カスタムスクロールバー */
     scrollbar-width: thin;
-    scrollbar-color: rgba(59, 130, 246, 0.3) transparent;
+    scrollbar-color: rgba(59, 130, 246, 0.35) transparent;
 }
 
 #product-list::-webkit-scrollbar {
-    width: 6px;
+    width: 5px;
 }
 
 #product-list::-webkit-scrollbar-track {
@@ -461,20 +865,32 @@ html, body {
 
 #product-list::-webkit-scrollbar-thumb {
     background: rgba(59, 130, 246, 0.3);
-    border-radius: 3px;
+    border-radius: 4px;
+    transition: background 0.2s ease;
 }
 
 #product-list::-webkit-scrollbar-thumb:hover {
-    background: rgba(59, 130, 246, 0.5);
+    background: rgba(59, 130, 246, 0.55);
 }
 
-/* --- 製品項目（左画像・右テキストレイアウト） --- */
+/* ========================================
+   製品項目（左画像・右テキストレイアウト）
+   ======================================== */
+
+/* 製品項目コンテナ：間隔調整 */
 .product-item {
     display: flex;
-    gap: 20px;
-    padding: 20px;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    gap: 22px;
+    padding: 22px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.045);
     align-items: flex-start;
+    background: #ffffff;
+    transition: background 0.2s ease;
+}
+
+/* 偶数番目の製品項目：微妙な背景差異 */
+.product-item:nth-child(even) {
+    background: rgba(248, 250, 252, 0.6);
 }
 
 /* 最後の製品項目は下部区切り線なし */
@@ -482,33 +898,44 @@ html, body {
     border-bottom: none;
 }
 
-/* 製品画像エリア（左側） */
+/* 产品图片列（左侧）：宽度46%，图片尽量大地展示 */
 .product-image-col {
     flex-shrink: 0;
-    width: 400px;
+    width: 46%;             /* 从42%放大到46%，图片更突出 */
     display: flex;
-    align-items: center;
+    align-items: flex-start;    /* 图片顶部对齐，不居中 */
     justify-content: center;
     background: linear-gradient(145deg, #f0f4f8, #e8edf3);
-    border-radius: 12px;
+    border-radius: 14px;
     overflow: hidden;
     border: 1px solid rgba(0, 0, 0, 0.05);
-    padding: 8px;
-    align-self: stretch;
+    padding: 10px;
+    align-self: flex-start;    /* 图片容器不拉伸，固定在顶部 */
     min-height: 160px;
+    max-height: 620px;         /* 从420px放大到620px，充分展示大图 */
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    transition: box-shadow 0.3s ease;
 }
 
+.product-image-col:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+/* 产品图片：放大max-height，尽量填满容器 */
 .product-image-col img {
     max-width: 100%;
-    max-height: 100%;
+    max-height: 600px;    /* 从400px放大到600px，大图更震撼 */
     object-fit: contain;
     display: block;
+    border-radius: 8px;
 }
 
-/* 製品詳細エリア（右側） */
+/* 产品详情文字列（右侧）：max-height与图片容器一致 */
 .product-detail-col {
     flex: 1;
     min-width: 0;
+    overflow-y: auto;    /* 文字过长时可独立滚动 */
+    max-height: 620px;   /* 与图片容器max-height保持一致 */
 }
 
 /* 製品名 */
@@ -518,10 +945,11 @@ html, body {
     color: #1a1a2e;
     margin-bottom: 10px;
     position: relative;
-    padding-bottom: 8px;
+    padding-bottom: 9px;
+    letter-spacing: 0.2px;
 }
 
-/* 製品名下部装飾ライン */
+/* 製品名下部装飾ライン：グラデーション */
 .product-name::after {
     content: '';
     position: absolute;
@@ -537,9 +965,10 @@ html, body {
    Markdown描画スタイル
    ======================================== */
 
+/* 製品説明テキスト領域 */
 .product-description {
     font-size: 13px;
-    line-height: 1.8;
+    line-height: 1.85;
     color: #444;
     letter-spacing: 0.2px;
     margin-top: 8px;
@@ -553,9 +982,10 @@ html, body {
 }
 
 .product-description ul li {
-    padding: 4px 0 4px 16px;
+    padding: 4px 0 4px 18px;
     position: relative;
-    line-height: 1.7;
+    line-height: 1.75;
+    color: #3d4451;
 }
 
 /* リスト項目前のブルードット */
@@ -566,8 +996,9 @@ html, body {
     top: 11px;
     width: 6px;
     height: 6px;
-    background: #3b82f6;
+    background: linear-gradient(135deg, #3b82f6, #60a5fa);
     border-radius: 50%;
+    box-shadow: 0 0 4px rgba(59, 130, 246, 0.4);
 }
 
 /* Markdown太字 */
@@ -576,16 +1007,18 @@ html, body {
     font-weight: 600;
 }
 
-/* Markdownテーブルスタイル */
+/* Markdownテーブルスタイル：最適化 */
 .product-description table {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
     margin-top: 12px;
     font-size: 12.5px;
     background: #f8fafc;
-    border-radius: 8px;
+    border-radius: 10px;
     overflow: hidden;
     border: 1px solid #e2e8f0;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
 }
 
 .product-description thead {
@@ -593,7 +1026,7 @@ html, body {
 }
 
 .product-description th {
-    padding: 8px 12px;
+    padding: 9px 14px;
     text-align: left;
     font-weight: 600;
     color: #1e40af;
@@ -603,25 +1036,26 @@ html, body {
 }
 
 .product-description td {
-    padding: 7px 12px;
-    border-bottom: 1px solid #e2e8f0;
+    padding: 7px 14px;
+    border-bottom: 1px solid #e8edf3;
     color: #374151;
+    transition: background 0.15s ease;
 }
 
 .product-description tr:last-child td {
     border-bottom: none;
 }
 
+/* テーブル行ホバー効果 */
 .product-description tr:hover td {
-    background: rgba(59, 130, 246, 0.04);
+    background: rgba(59, 130, 246, 0.05);
 }
 
-/* --- 非表示ユーティリティクラス --- */
-.hidden {
-    display: none !important;
-}
+/* ========================================
+   画像ローディングインジケータ
+   ======================================== */
 
-/* --- ★画像ロード中インジケータ --- */
+/* ローディングインジケータコンテナ */
 #loading-indicator {
     position: absolute;
     top: 50%;
@@ -629,69 +1063,211 @@ html, body {
     transform: translate(-50%, -50%);
     z-index: 20;
     opacity: 0;
-    transition: opacity 0.3s ease;
+    transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     pointer-events: none;
 }
 
-/* ロード中表示状態 */
+/* ローディング表示状態 */
 #loading-indicator.visible {
     opacity: 1;
 }
 
-/* 回転スピナーアニメーション */
+/* 回転スピナー：精緻なデザイン */
 .loading-spinner {
-    width: 40px;
-    height: 40px;
-    border: 3px solid rgba(255, 255, 255, 0.2);
+    width: 42px;
+    height: 42px;
+    border: 3px solid rgba(255, 255, 255, 0.15);
     border-top-color: #3b82f6;
+    border-right-color: rgba(59, 130, 246, 0.5);
     border-radius: 50%;
-    animation: spin 0.8s linear infinite;
+    animation: spin 0.75s linear infinite;
+    filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.5));
 }
 
+/* スピナー回転アニメーション */
 @keyframes spin {
     to { transform: rotate(360deg); }
 }
 
-/* --- ★製品説明ローディングプレースホルダ --- */
+/* ========================================
+   骨格スクリーン（スケルトンUI）
+   ======================================== */
+
+/* 製品説明ローディングプレースホルダ：骨格スクリーン対応 */
 .desc-loading {
-    color: #999;
-    font-size: 13px;
-    font-style: italic;
-    padding: 12px 0;
+    padding: 8px 0;
+}
+
+/* スケルトンライン：シマーアニメーション */
+.skeleton-line {
+    height: 12px;
+    border-radius: 6px;
+    background: linear-gradient(90deg,
+        #e8edf3 25%,
+        #f0f4f8 50%,
+        #e8edf3 75%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.5s ease-in-out infinite;
+    margin-bottom: 10px;
+}
+
+/* スケルトンラインの幅バリエーション */
+.skeleton-line:nth-child(1) { width: 90%; }
+.skeleton-line:nth-child(2) { width: 75%; }
+.skeleton-line:nth-child(3) { width: 85%; }
+.skeleton-line:nth-child(4) { width: 60%; }
+.skeleton-line:nth-child(5) { width: 80%; }
+.skeleton-line:last-child { margin-bottom: 0; }
+
+/* シマーアニメーション */
+@keyframes skeleton-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* ========================================
+   エラー状態スタイル（新規追加）
+   ======================================== */
+
+/* 全画面エラーオーバーレイ：mapping.json読み込み失敗時 */
+.error-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(10, 10, 10, 0.92);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    gap: 20px;
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 15px;
     text-align: center;
-    animation: desc-loading-pulse 1.5s ease-in-out infinite;
+    padding: 40px;
+    line-height: 1.7;
 }
 
-@keyframes desc-loading-pulse {
-    0%, 100% { opacity: 0.4; }
-    50% { opacity: 0.8; }
+/* エラーアイコン（アニメーション付き） */
+.error-overlay::before {
+    content: '⚠';
+    font-size: 42px;
+    display: block;
+    animation: error-shake 0.6s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+    color: #f59e0b;
 }
 
-/* --- シーン切替遷移アニメーション --- */
-.scene-transitioning #scene-switcher {
-    opacity: 0 !important;
+/* エラーシェイクアニメーション */
+@keyframes error-shake {
+    10%, 90% { transform: translateX(-1px); }
+    20%, 80% { transform: translateX(2px); }
+    30%, 50%, 70% { transform: translateX(-3px); }
+    40%, 60% { transform: translateX(3px); }
 }
 
-.scene-transitioning .hotspot {
-    opacity: 0;
+/* リトライボタン */
+.retry-btn {
+    padding: 10px 28px;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: #ffffff;
+    border: none;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4);
+    letter-spacing: 0.5px;
 }
 
-/* --- ホットスポット出現アニメーション --- */
-.hotspot {
-    opacity: 0;
-    animation: hotspot-appear 0.5s ease forwards;
+.retry-btn:hover {
+    background: linear-gradient(135deg, #60a5fa, #3b82f6);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(59, 130, 246, 0.55);
 }
 
-@keyframes hotspot-appear {
-    0% {
-        opacity: 0;
+.retry-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.35);
+}
+
+/* Markdown読み込み失敗テキスト */
+.load-failed {
+    color: rgba(239, 68, 68, 0.85);
+    font-size: 12.5px;
+    font-style: italic;
+    padding: 10px 0;
+    cursor: pointer;
+    transition: color 0.2s ease;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+}
+
+.load-failed:hover {
+    color: rgba(239, 68, 68, 1);
+}
+
+/* ========================================
+   产品详情弹窗响应式适配
+   ======================================== */
+
+/* 中等屏幕（宽度<900px）：弹窗和布局微调 */
+@media (max-width: 900px) {
+    #detail-card {
+        width: 96vw;
+        max-height: min(95vh, 780px);
     }
-    100% {
-        opacity: 1;
+    .product-item {
+        gap: 16px;
+        padding: 16px;
+    }
+    .product-image-col {
+        width: 42%;
+        max-height: 400px;
+    }
+    .product-image-col img {
+        max-height: 380px;
+    }
+    .product-detail-col {
+        max-height: 400px;
     }
 }
 
-/* --- ヒントテキスト --- */
+/* 小屏幕（宽度<600px）：图片和文字改为上下布局 */
+@media (max-width: 600px) {
+    #detail-card {
+        width: 98vw;
+        max-height: min(96vh, 720px);
+    }
+    .product-item {
+        flex-direction: column;    /* 小屏幕改为上图下文 */
+        gap: 12px;
+        padding: 14px;
+    }
+    .product-image-col {
+        width: 100%;               /* 图片占满宽度 */
+        max-height: 260px;
+    }
+    .product-image-col img {
+        max-height: 240px;
+    }
+    .product-detail-col {
+        max-height: none;          /* 小屏幕不限制文字区域高度 */
+        overflow-y: visible;
+    }
+}
+
+/* ========================================
+   ヒントテキスト
+   ======================================== */
+
+/* ヒントテキスト：画面下部 */
 .hint-text {
     position: absolute;
     bottom: 80px;
@@ -703,9 +1279,32 @@ html, body {
     z-index: 6;
     animation: hint-fade 3s ease-in-out infinite;
     pointer-events: none;
+    white-space: nowrap;
 }
 
 @keyframes hint-fade {
     0%, 100% { opacity: 0.4; }
-    50% { opacity: 0.8; }
+    50% { opacity: 0.85; }
+}
+
+/* ========================================
+   シーン遷移アニメーション
+   ======================================== */
+
+/* シーン切替中：各UIを非表示 */
+.scene-transitioning #scene-switcher {
+    opacity: 0 !important;
+}
+
+.scene-transitioning .hotspot {
+    opacity: 0;
+}
+
+/* ========================================
+   ユーティリティクラス
+   ======================================== */
+
+/* 非表示ユーティリティクラス */
+.hidden {
+    display: none !important;
 }

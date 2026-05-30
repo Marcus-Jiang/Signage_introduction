@@ -1,0 +1,12 @@
+.git
+.gitignore
+.trae/
+__pycache__/
+*.py[cod]
+*.bak
+*.log
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+node_modules/

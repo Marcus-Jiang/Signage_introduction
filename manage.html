@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数字标牌管理后台</title>
+    <link rel="stylesheet" href="css/manage.css">
+</head>
+<body>
+    <!-- 顶部工具栏 -->
+    <div id="toolbar">
+        <h1>数字标牌管理后台</h1>
+        <div id="toolbar-actions">
+            <span id="save-status"></span>
+            <button id="btn-save">保存配置</button>
+        </div>
+    </div>
+
+    <!-- 三栏主体容器 -->
+    <div id="main-container">
+        <!-- 左栏：场景列表 -->
+        <div id="scene-list-panel">
+            <div class="panel-header">
+                <h3>场景列表</h3>
+            </div>
+            <div id="scene-list"></div>
+            <div class="panel-footer">
+                <button id="btn-add-scene">+ 添加场景</button>
+            </div>
+        </div>
+
+        <!-- 中栏：场景编辑区 -->
+        <div id="scene-editor-panel">
+            <!-- 场景信息编辑栏 -->
+            <div id="scene-info-bar">
+                <div class="info-field">
+                    <label>分类名(日文)：</label>
+                    <input type="text" id="input-category-ja" placeholder="日文分类名">
+                </div>
+                <div class="info-field">
+                    <label>分类名(中文)：</label>
+                    <input type="text" id="input-category-zh" placeholder="中文分类名">
+                </div>
+                <div class="info-field">
+                    <label>场景图：</label>
+                    <button id="btn-change-image">更换场景图</button>
+                    <input type="file" id="input-scene-image" accept="image/*" style="display:none">
+                </div>
+            </div>
+            <!-- 场景大图预览区 -->
+            <div id="scene-preview-area">
+                <div id="scene-image-container">
+                    <img id="scene-preview-img" src="" alt="场景预览">
+                    <div id="hotspot-overlay"></div>
+                    <!-- 无场景时的占位提示 -->
+                    <div id="no-scene-hint">请从左侧选择一个场景</div>
+                    <!-- 拖拽上传覆盖层 -->
+                    <div id="scene-drop-overlay" class="scene-drop-overlay hidden">
+                        <div class="drop-overlay-icon">&#128194;</div>
+                        <div>释放以更换场景图</div>
+                        <div class="drop-overlay-text">仅支持图片文件</div>
+                    </div>
+                </div>
+            </div>
+            <!-- 底部工具栏 -->
+            <div id="editor-toolbar">
+                <button id="btn-add-hotspot">添加热点</button>
+                <button id="btn-delete-hotspot">删除选中热点</button>
+                <span id="hotspot-coord-info">未选中热点</span>
+            </div>
+        </div>
+
+        <!-- 右栏：热点产品关联编辑器 -->
+        <div id="product-editor-panel">
+            <div class="panel-header">
+                <h3 id="product-editor-title">热点产品关联</h3>
+            </div>
+            <div id="product-editor-content">
+                <div id="no-hotspot-hint">请先在场景图中选择一个热点</div>
+                <div id="product-list-editor" style="display:none"></div>
+            </div>
+            <div class="panel-footer" id="product-editor-footer" style="display:none">
+                <button id="btn-add-product">+ 添加产品到此热点</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast 提示容器 -->
+    <div id="toast-container"></div>
+
+    <!-- 添加场景对话框 -->
+    <div id="dialog-overlay" class="hidden">
+        <div id="add-scene-dialog">
+            <h3>添加新场景</h3>
+            <div class="dialog-field">
+                <label>分类名(日文)：</label>
+                <input type="text" id="dialog-category-ja" placeholder="例：コンビニエンスストア">
+            </div>
+            <div class="dialog-field">
+                <label>分类名(中文)：</label>
+                <input type="text" id="dialog-category-zh" placeholder="例：便利店">
+            </div>
+            <div class="dialog-field">
+                <label>场景图：</label>
+                <div id="dialog-drop-zone" class="drop-zone">
+                    <div class="drop-zone-icon">&#128194;</div>
+                    <div>将场景图拖到此处</div>
+                    <div class="drop-zone-hint">或点击选择文件</div>
+                </div>
+                <input type="file" id="dialog-scene-image" accept="image/*" style="display:none">
+            </div>
+            <div class="dialog-actions">
+                <button id="btn-dialog-cancel">取消</button>
+                <button id="btn-dialog-confirm">确定添加</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/manage.js"></script>
+</body>
+</html>

@@ -13,6 +13,12 @@
     <!-- メインコンテナ：シーン画像、ホットスポット、切替ボタンを含む -->
     <div id="app">
 
+        <!-- 言語切替器：右上固定表示 -->
+        <div id="lang-switcher">
+            <button class="lang-btn active" data-lang="ja">日本語</button>
+            <button class="lang-btn" data-lang="zh">中文</button>
+        </div>
+
         <!-- シーン画像コンテナ（2層画像でクロスフェード実現） -->
         <div id="scene-container">
             <img id="scene-image-a" class="scene-layer inactive" src="" alt="シーン画像">
