@@ -731,12 +731,10 @@ html, body {
     pointer-events: all;
 }
 
-/* 弹窗卡片：几乎占满屏幕，四边保留30px间距 */
+/* 弹窗卡片：严格不超出视口 */
 #detail-card {
-    /* 宽度：取视口95%与1300px中的较小值，确保左右各留约30px */
-    width: min(95vw, 1300px);
-    /* 高度：取视口95%与920px中的较小值，确保上下各留约30px */
-    max-height: min(95vh, 920px);
+    width: min(96vw, 1400px);
+    height: min(92vh, 900px);
     background: rgba(255, 255, 255, 0.97);
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
@@ -845,47 +843,29 @@ html, body {
    製品リストコンテナ（スクロール可能）
    ======================================== */
 
-/* スクロール領域：カスタムスクロールバー */
+/* 产品列表容器：填满剩余空间，不自身滚动 */
 #product-list {
-    overflow-y: auto;
+    overflow: hidden;
     flex: 1;
+    min-height: 0;
     padding: 0;
-    /* Webkit カスタムスクロールバー */
-    scrollbar-width: thin;
-    scrollbar-color: rgba(59, 130, 246, 0.35) transparent;
-}
-
-#product-list::-webkit-scrollbar {
-    width: 5px;
-}
-
-#product-list::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-#product-list::-webkit-scrollbar-thumb {
-    background: rgba(59, 130, 246, 0.3);
-    border-radius: 4px;
-    transition: background 0.2s ease;
-}
-
-#product-list::-webkit-scrollbar-thumb:hover {
-    background: rgba(59, 130, 246, 0.55);
 }
 
 /* ========================================
    製品項目（左画像・右テキストレイアウト）
    ======================================== */
 
-/* 製品項目コンテナ：間隔調整 */
+/* 产品项：填满列表容器，左右分栏 */
 .product-item {
     display: flex;
     gap: 22px;
     padding: 22px;
     border-bottom: 1px solid rgba(0, 0, 0, 0.045);
-    align-items: flex-start;
+    align-items: stretch;
     background: #ffffff;
     transition: background 0.2s ease;
+    height: 100%;
+    min-height: 0;
 }
 
 /* 偶数番目の製品項目：微妙な背景差異 */
@@ -898,21 +878,19 @@ html, body {
     border-bottom: none;
 }
 
-/* 产品图片列（左侧）：宽度46%，图片尽量大地展示 */
+/* 产品图片列：固定宽度，高度填满，图片居中contain */
 .product-image-col {
     flex-shrink: 0;
-    width: 46%;             /* 从42%放大到46%，图片更突出 */
+    width: 50%;
     display: flex;
-    align-items: flex-start;    /* 图片顶部对齐，不居中 */
+    align-items: center;
     justify-content: center;
     background: linear-gradient(145deg, #f0f4f8, #e8edf3);
     border-radius: 14px;
     overflow: hidden;
     border: 1px solid rgba(0, 0, 0, 0.05);
     padding: 10px;
-    align-self: flex-start;    /* 图片容器不拉伸，固定在顶部 */
-    min-height: 160px;
-    max-height: 620px;         /* 从420px放大到620px，充分展示大图 */
+    min-height: 0;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.9);
     transition: box-shadow 0.3s ease;
 }
@@ -921,21 +899,41 @@ html, body {
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
-/* 产品图片：放大max-height，尽量填满容器 */
+/* 产品图片：contain填满图片区域，保持长宽比 */
 .product-image-col img {
     max-width: 100%;
-    max-height: 600px;    /* 从400px放大到600px，大图更震撼 */
+    max-height: 100%;
     object-fit: contain;
     display: block;
     border-radius: 8px;
 }
 
-/* 产品详情文字列（右侧）：max-height与图片容器一致 */
+/* 产品详情文字列：独立滚动 */
 .product-detail-col {
     flex: 1;
     min-width: 0;
-    overflow-y: auto;    /* 文字过长时可独立滚动 */
-    max-height: 620px;   /* 与图片容器max-height保持一致 */
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 4px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(59, 130, 246, 0.35) transparent;
+}
+
+.product-detail-col::-webkit-scrollbar {
+    width: 5px;
+}
+
+.product-detail-col::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.product-detail-col::-webkit-scrollbar-thumb {
+    background: rgba(59, 130, 246, 0.3);
+    border-radius: 4px;
+}
+
+.product-detail-col::-webkit-scrollbar-thumb:hover {
+    background: rgba(59, 130, 246, 0.55);
 }
 
 /* 製品名 */
@@ -1217,25 +1215,18 @@ html, body {
    产品详情弹窗响应式适配
    ======================================== */
 
-/* 中等屏幕（宽度<900px）：弹窗和布局微调 */
+/* 中等屏幕（宽度<900px） */
 @media (max-width: 900px) {
     #detail-card {
-        width: 96vw;
-        max-height: min(95vh, 780px);
+        width: 97vw;
+        height: min(94vh, 860px);
     }
     .product-item {
         gap: 16px;
         padding: 16px;
     }
     .product-image-col {
-        width: 42%;
-        max-height: 400px;
-    }
-    .product-image-col img {
-        max-height: 380px;
-    }
-    .product-detail-col {
-        max-height: 400px;
+        width: 46%;
     }
 }
 
@@ -1243,23 +1234,24 @@ html, body {
 @media (max-width: 600px) {
     #detail-card {
         width: 98vw;
-        max-height: min(96vh, 720px);
+        height: min(95vh, 780px);
     }
     .product-item {
-        flex-direction: column;    /* 小屏幕改为上图下文 */
+        flex-direction: column;
         gap: 12px;
         padding: 14px;
     }
     .product-image-col {
-        width: 100%;               /* 图片占满宽度 */
-        max-height: 260px;
+        width: 100%;
+        height: 45%;
+        flex-shrink: 0;
     }
     .product-image-col img {
-        max-height: 240px;
+        max-height: 100%;
     }
     .product-detail-col {
-        max-height: none;          /* 小屏幕不限制文字区域高度 */
-        overflow-y: visible;
+        flex: 1;
+        min-height: 0;
     }
 }
 
