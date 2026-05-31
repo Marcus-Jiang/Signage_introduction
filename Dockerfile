@@ -14,7 +14,7 @@ WORKDIR /app
 COPY . .
 
 # 暴露端口
-EXPOSE 8082
+EXPOSE 65002
 
 # 启动服务器
 CMD ["python", "启动服务器.py"]

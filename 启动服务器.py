@@ -22,7 +22,7 @@ except ImportError:
 
 # 项目根目录
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
-PORT = 8082
+PORT = 65002
 
 # 支持的图片扩展名
 IMAGE_EXTENSIONS = ('.webp', '.jpg', '.png')

@@ -1,6 +1,7 @@
 .git
 .gitignore
 .trae/
+.qoder/
 __pycache__/
 *.py[cod]
 *.bak
@@ -10,3 +11,7 @@ __pycache__/
 .DS_Store
 Thumbs.db
 node_modules/
+project_architecture.md
+docker-compose.yml
+Dockerfile
+.dockerignore

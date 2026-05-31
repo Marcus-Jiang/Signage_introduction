@@ -1,8 +1,9 @@
 # 数字标牌产品展示页面 - 项目架构文档
 
-> 最后更新：2026-05-30  
+> 最后更新：2026-05-31  
 > 项目所有者：杭州海拓商通国际贸易有限公司  
 > 项目版本：v5.0
+> 部署主机：192.168.124.99（Docker Compose 部署，端口 65002）
 
 ---
 
@@ -21,8 +22,8 @@
 ```
 
 ### 1.3 在线预览
-- 展示页面：启动本地服务器后访问 `http://localhost:8082/index.html`
-- 管理后台：`http://localhost:8082/manage.html`
+- 展示页面：启动服务器后访问 `http://192.168.124.99:65002/index.html`
+- 管理后台：`http://192.168.124.99:65002/manage.html`
 
 ---
 
@@ -45,7 +46,7 @@
 ## 三、项目文件结构
 
 ```
-e:\Haituo\Digital_signage_introduction_ja\
+/home/wenzhu/digital_signage_introduction/
 │
 ├── index.html                    # 展示主页面
 ├── manage.html                   # 管理后台页面
@@ -1010,7 +1011,7 @@ manage.js (v5.0, 1282行)
 
 ### 9.1 概述
 
-本地开发服务器（`启动服务器.py`）在静态文件服务基础上新增 4 个 API 端点，供管理后台使用。默认端口 8082。支持 Pillow 自动将上传图片转换为 webp 格式。
+本地开发服务器（`启动服务器.py`）在静态文件服务基础上新增 4 个 API 端点，供管理后台使用。默认端口 65002。支持 Pillow 自动将上传图片转换为 webp 格式。
 
 ### 9.2 API 端点列表
 
@@ -1091,13 +1092,22 @@ OPTIONS 预检请求返回 204 No Content。
 
 ### 9.5 端口策略
 
-默认端口 8082。如果被占用，自动递增查找可用端口（最多尝试 100 个端口）。
+默认端口 65002。如果被占用，自动递增查找可用端口（最多尝试 100 个端口）。
 
 ---
 
 ## 十、Docker 部署
 
-### 10.1 Dockerfile
+### 10.1 部署环境
+
+| 项目 | 值 |
+|------|------|
+| 部署主机 | 192.168.124.99 |
+| 服务端口 | 65002 |
+| 部署方式 | Docker Compose |
+| 容器名称 | digital-signage-app |
+
+### 10.2 Dockerfile
 
 ```dockerfile
 FROM python:3.11-slim
@@ -1106,11 +1116,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN pip install --no-cache-dir Pillow
 WORKDIR /app
 COPY . .
-EXPOSE 8082
+EXPOSE 65002
 CMD ["python", "启动服务器.py"]
 ```
 
-### 10.2 docker-compose.yml
+### 10.3 docker-compose.yml
 
 ```yaml
 version: '3.8'
@@ -1119,7 +1129,7 @@ services:
     build: .
     container_name: digital-signage-app
     ports:
-      - "8082:8082"
+      - "65002:65002"
     volumes:
       - ./mapping.json:/app/mapping.json
       - ./场景图:/app/场景图
@@ -1130,14 +1140,56 @@ services:
       - PYTHONUNBUFFERED=1
 ```
 
-### 10.3 部署命令
+### 10.4 部署步骤
+
+1. 将项目文件上传到远程主机 192.168.124.99：
+   ```bash
+   scp -r /home/wenzhu/digital_signage_introduction/ wenzhu@192.168.124.99:/home/wenzhu/digital_signage_introduction/
+   ```
+
+2. SSH 登录远程主机：
+   ```bash
+   ssh wenzhu@192.168.124.99
+   cd /home/wenzhu/digital_signage_introduction
+   ```
+
+3. 构建并启动容器：
+   ```bash
+   docker-compose up -d --build
+   ```
+
+4. 验证服务是否正常运行：
+   ```bash
+   docker-compose logs -f
+   ```
+
+5. 访问服务：
+   - 展示页面：`http://192.168.124.99:65002/index.html`
+   - 管理后台：`http://192.168.124.99:65002/manage.html`
+
+### 10.5 常用运维命令
 
 ```bash
 docker-compose up -d        # 后台启动
 docker-compose logs -f      # 查看日志
 docker-compose down         # 停止
 docker-compose up -d --build  # 重新构建并启动
+docker-compose restart      # 重启服务
+docker-compose ps           # 查看容器状态
 ```
+
+### 10.6 数据持久化说明
+
+通过 `docker-compose.yml` 中的 `volumes` 配置，以下数据持久化到宿主机：
+
+| 容器路径 | 宿主机路径 | 说明 |
+|---------|-----------|------|
+| `/app/mapping.json` | `./mapping.json` | 场景/产品配置数据 |
+| `/app/场景图` | `./场景图` | 场景图片 |
+| `/app/产品图` | `./产品图` | 产品图片 |
+| `/app/产品描述` | `./产品描述` | 产品描述 Markdown 文件 |
+
+容器重建后数据不会丢失。
 
 ---
 
@@ -1161,7 +1213,7 @@ docker-compose up -d --build  # 重新构建并启动
 ### 12.1 通过管理后台修改（推荐）
 
 1. 启动服务器：双击 `启动服务器.py` 或 `docker-compose up -d`
-2. 打开管理后台：`http://localhost:8082/manage.html`
+2. 打开管理后台：`http://192.168.124.99:65002/manage.html`
 3. 在左栏选择场景 → 中栏编辑 → 右栏编辑产品
 4. 点击"保存配置"
 
