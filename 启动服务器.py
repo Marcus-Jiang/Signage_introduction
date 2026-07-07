@@ -6,6 +6,7 @@
 
 import http.server
 import socketserver
+import threading
 import webbrowser
 import os
 import sys
@@ -26,6 +27,16 @@ PORT = 65002
 
 # 支持的图片扩展名
 IMAGE_EXTENSIONS = ('.webp', '.jpg', '.png')
+
+
+class ThreadingHTTPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    """多线程 HTTP 服务器，支持并发处理多个请求
+
+    原版 TCPServer 是单线程的，同一时刻只能处理 1 个请求。
+    远程部署时，前端预加载数十张图片会导致请求排队，页面加载极慢。
+    ThreadingMixIn 为每个连接创建独立线程，解决并发瓶颈。
+    """
+    daemon_threads = True  # 主进程退出时自动清理子线程
 
 
 class APIHandler(http.server.SimpleHTTPRequestHandler):
@@ -85,6 +96,10 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
                 self._api_list_images()
             elif path == '/api/list-descriptions':
                 self._api_list_descriptions()
+            elif path == '/api/list-products':
+                self._api_list_products()
+            elif path == '/api/read-description':
+                self._api_read_description()
             else:
                 self._send_error_json("未知的 API 路径: " + path, 404)
         except Exception as e:
@@ -97,6 +112,14 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
                 self._api_save_mapping()
             elif path == '/api/upload-image':
                 self._api_upload_image()
+            elif path == '/api/save-product':
+                self._api_save_product()
+            elif path == '/api/delete-product':
+                self._api_delete_product()
+            elif path == '/api/save-description':
+                self._api_save_description()
+            elif path == '/api/rename-scene-image':
+                self._api_rename_scene_image()
             else:
                 self._send_error_json("未知的 API 路径: " + path, 404)
         except Exception as e:
@@ -319,6 +342,55 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
             "savedName": saved_name
         })
 
+    def _api_rename_scene_image(self):
+        """POST /api/rename-scene-image - 重命名场景图片文件"""
+        content_type = self.headers.get('Content-Type', '')
+        if 'multipart/form-data' not in content_type:
+            self._send_error_json("请求必须是 multipart/form-data 格式", 400)
+            return
+
+        files, fields = self._parse_multipart()
+        if files is None:
+            self._send_error_json("multipart 解析失败", 400)
+            return
+
+        old_path = fields.get('oldPath', '')
+        new_name = fields.get('newName', '')
+
+        if not old_path or not new_name:
+            self._send_error_json("缺少 oldPath 或 newName 参数", 400)
+            return
+
+        # 安全：只允许重命名 场景图/ 目录下的文件
+        if not old_path.startswith('场景图/'):
+            self._send_error_json("只能重命名场景图目录下的文件", 400)
+            return
+
+        old_full = os.path.join(PROJECT_ROOT, old_path)
+        if not os.path.exists(old_full):
+            self._send_error_json("原文件不存在: " + old_path, 404)
+            return
+
+        # 构建新路径：保持同一目录，替换文件名
+        old_dir = os.path.dirname(old_full)
+        old_ext = os.path.splitext(old_full)[1]  # 保留原扩展名
+        new_full = os.path.join(old_dir, new_name + old_ext)
+
+        # 如果新旧路径不同，执行重命名
+        if old_full != new_full:
+            # 如果目标文件已存在，先删除
+            if os.path.exists(new_full):
+                os.remove(new_full)
+            os.rename(old_full, new_full)
+
+        # 计算新的相对路径
+        new_rel = os.path.relpath(new_full, PROJECT_ROOT).replace(os.sep, '/')
+
+        self._send_json_response({
+            "success": True,
+            "newPath": new_rel
+        })
+
     def _api_list_images(self):
         """GET /api/list-images - 返回所有图片文件列表（递归扫描多层子目录）"""
         scenes_dir = os.path.join(PROJECT_ROOT, '场景图')
@@ -376,24 +448,404 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
 
         self._send_json_response(result)
 
+    # ========== 产品管理 API ==========
 
-def find_available_port(start_port):
-    """从指定端口开始查找可用端口"""
-    port = start_port
-    while port < start_port + 100:
+    def _ensure_products_json(self):
+        """确保 products.json 存在且有效，不存在或无效则从 mapping.json 初始化"""
+        products_path = os.path.join(PROJECT_ROOT, 'products.json')
+
+        # 文件存在时检查是否为有效 JSON
+        if os.path.exists(products_path):
+            try:
+                with open(products_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                if isinstance(data, dict) and 'products' in data:
+                    return  # 文件有效，无需重建
+            except (json.JSONDecodeError, ValueError):
+                pass  # 文件无效，继续重新初始化
+
+        mapping_path = os.path.join(PROJECT_ROOT, 'mapping.json')
+        products = []
+        seen = set()
+
+        if os.path.exists(mapping_path):
+            with open(mapping_path, 'r', encoding='utf-8') as f:
+                mapping = json.load(f)
+
+            for scene in mapping.get('scenes', []):
+                for hotspot in scene.get('hotspots', []):
+                    for product in hotspot.get('products', []):
+                        image_path = product.get('image', '')
+                        if not image_path:
+                            continue
+                        parts = image_path.split('/')
+                        if len(parts) >= 4 and parts[0] == '产品描述':
+                            category = parts[1]
+                            subcategory = parts[2]
+                            filename = parts[3]
+                            name_zh = os.path.splitext(filename)[0]
+                        else:
+                            continue
+                        key = f"{category}/{subcategory}/{name_zh}"
+                        if key in seen:
+                            continue
+                        seen.add(key)
+                        name_ja = ''
+                        if isinstance(product.get('name'), dict):
+                            name_ja = product['name'].get('ja', '')
+                        products.append({
+                            'category': category,
+                            'subcategory': subcategory,
+                            'nameZh': name_zh,
+                            'nameJa': name_ja
+                        })
+
+        with open(products_path, 'w', encoding='utf-8') as f:
+            json.dump({"products": products}, f, ensure_ascii=False, indent=2)
+
+    def _load_products_json(self):
+        """加载 products.json"""
+        self._ensure_products_json()
+        products_path = os.path.join(PROJECT_ROOT, 'products.json')
+        with open(products_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return data.get('products', [])
+
+    def _save_products_json(self, products):
+        """保存 products.json"""
+        products_path = os.path.join(PROJECT_ROOT, 'products.json')
+        with open(products_path, 'w', encoding='utf-8') as f:
+            json.dump({"products": products}, f, ensure_ascii=False, indent=2)
+
+    def _update_products_json(self, category, subcategory, name_zh, name_ja):
+        """更新或添加 products.json 中的产品条目"""
+        products = self._load_products_json()
+        found = False
+        for p in products:
+            if (p.get('category') == category and
+                    p.get('subcategory') == subcategory and
+                    p.get('nameZh') == name_zh):
+                p['nameJa'] = name_ja
+                found = True
+                break
+        if not found:
+            products.append({
+                'category': category,
+                'subcategory': subcategory,
+                'nameZh': name_zh,
+                'nameJa': name_ja
+            })
+        self._save_products_json(products)
+
+    def _remove_from_products_json(self, category, subcategory, name_zh):
+        """从 products.json 中移除产品条目"""
+        products = self._load_products_json()
+        products = [p for p in products if not (
+            p.get('category') == category and
+            p.get('subcategory') == subcategory and
+            p.get('nameZh') == name_zh
+        )]
+        self._save_products_json(products)
+
+    def _api_list_products(self):
+        """GET /api/list-products - 返回所有产品列表"""
+        self._ensure_products_json()
+        products_meta = self._load_products_json()
+
+        desc_dir = os.path.join(PROJECT_ROOT, '产品描述')
+        result = []
+
+        if os.path.isdir(desc_dir):
+            for category in sorted(os.listdir(desc_dir)):
+                category_path = os.path.join(desc_dir, category)
+                if not os.path.isdir(category_path):
+                    continue
+                for subcategory in sorted(os.listdir(category_path)):
+                    subcategory_path = os.path.join(category_path, subcategory)
+                    if not os.path.isdir(subcategory_path):
+                        continue
+
+                    files = sorted(os.listdir(subcategory_path))
+                    image_files = [f for f in files if f.lower().endswith(IMAGE_EXTENSIONS)]
+
+                    product_names = set()
+                    for img in image_files:
+                        base = os.path.splitext(img)[0]
+                        product_names.add(base)
+
+                    for name_zh in sorted(product_names):
+                        image_path = ''
+                        for ext in IMAGE_EXTENSIONS:
+                            candidate = name_zh + ext
+                            if candidate in files:
+                                image_path = os.path.relpath(
+                                    os.path.join(subcategory_path, candidate), PROJECT_ROOT
+                                ).replace(os.sep, '/')
+                                break
+
+                        cn_path = ''
+                        jp_path = ''
+                        for md_name in files:
+                            if md_name == name_zh + '_cn.md':
+                                cn_path = os.path.relpath(
+                                    os.path.join(subcategory_path, md_name), PROJECT_ROOT
+                                ).replace(os.sep, '/')
+                            elif md_name == name_zh + '_jp.md':
+                                jp_path = os.path.relpath(
+                                    os.path.join(subcategory_path, md_name), PROJECT_ROOT
+                                ).replace(os.sep, '/')
+
+                        name_ja = name_zh
+                        for meta in products_meta:
+                            if (meta.get('category') == category and
+                                    meta.get('subcategory') == subcategory and
+                                    meta.get('nameZh') == name_zh):
+                                name_ja = meta.get('nameJa', name_zh)
+                                break
+
+                        result.append({
+                            'category': category,
+                            'subcategory': subcategory,
+                            'nameZh': name_zh,
+                            'nameJa': name_ja,
+                            'imagePath': image_path,
+                            'descCnPath': cn_path,
+                            'descJpPath': jp_path
+                        })
+
+        self._send_json_response({"products": result})
+
+    def _api_save_product(self):
+        """POST /api/save-product - 创建或更新产品"""
+        content_type = self.headers.get('Content-Type', '')
+        if 'multipart/form-data' not in content_type:
+            self._send_error_json("请求必须是 multipart/form-data 格式", 400)
+            return
+
+        files, fields = self._parse_multipart()
+        if files is None:
+            self._send_error_json("multipart 解析失败", 400)
+            return
+
+        category = fields.get('category', '')
+        subcategory = fields.get('subcategory', '')
+        name_ja = fields.get('nameJa', '')
+        name_zh = fields.get('nameZh', '')
+        original_name_zh = fields.get('originalNameZh', '')
+        desc_cn = fields.get('descCn', '')
+        desc_jp = fields.get('descJp', '')
+
+        if not category or not subcategory or not name_zh:
+            self._send_error_json("缺少必要参数: category, subcategory, nameZh", 400)
+            return
+
+        product_dir = os.path.join(PROJECT_ROOT, '产品描述', category, subcategory)
+        os.makedirs(product_dir, exist_ok=True)
+
+        # 如果名称变更，删除旧文件
+        if original_name_zh and original_name_zh != name_zh:
+            for suffix in ['.webp', '.png', '.jpg', '.jpeg', '_cn.md', '_jp.md']:
+                old_file = os.path.join(product_dir, original_name_zh + suffix)
+                if os.path.exists(old_file):
+                    os.remove(old_file)
+
+        # 处理图片文件
+        image_entry = files.get('image')
+        saved_image_name = ''
+        if image_entry:
+            original_name = os.path.basename(image_entry.get('filename', 'image'))
+            temp_path = os.path.join(product_dir, original_name)
+            with open(temp_path, 'wb') as f:
+                f.write(image_entry['data'])
+
+            # 删除旧图片
+            for ext in IMAGE_EXTENSIONS:
+                old_img = os.path.join(product_dir, name_zh + ext)
+                if os.path.exists(old_img) and old_img != temp_path:
+                    os.remove(old_img)
+
+            # 转换为 webp
+            if HAS_PILLOW:
+                try:
+                    img = Image.open(temp_path)
+                    icc_profile = img.info.get('icc_profile')
+                    if img.mode == 'CMYK':
+                        img = img.convert('RGB')
+                    elif img.mode == 'LA':
+                        img = img.convert('RGBA')
+                    elif img.mode == 'P':
+                        if 'transparency' in img.info:
+                            img = img.convert('RGBA')
+                        else:
+                            img = img.convert('RGB')
+
+                    webp_name = name_zh + '.webp'
+                    webp_path = os.path.join(product_dir, webp_name)
+                    save_kwargs = {'quality': 100, 'method': 6}
+                    if icc_profile:
+                        save_kwargs['icc_profile'] = icc_profile
+                    img.save(webp_path, 'WEBP', **save_kwargs)
+
+                    if temp_path != webp_path and os.path.exists(temp_path):
+                        os.remove(temp_path)
+                    saved_image_name = webp_name
+                except Exception as e:
+                    print(f"[警告] Pillow 转换失败: {e}")
+                    saved_image_name = original_name
+            else:
+                saved_image_name = original_name
+        else:
+            for ext in IMAGE_EXTENSIONS:
+                if os.path.exists(os.path.join(product_dir, name_zh + ext)):
+                    saved_image_name = name_zh + ext
+                    break
+
+        # 写入 MD 文件
+        cn_path = os.path.join(product_dir, name_zh + '_cn.md')
+        jp_path = os.path.join(product_dir, name_zh + '_jp.md')
+        with open(cn_path, 'w', encoding='utf-8') as f:
+            f.write(desc_cn)
+        with open(jp_path, 'w', encoding='utf-8') as f:
+            f.write(desc_jp)
+
+        # 更新 products.json
+        self._update_products_json(category, subcategory, name_zh, name_ja)
+        if original_name_zh and original_name_zh != name_zh:
+            self._remove_from_products_json(category, subcategory, original_name_zh)
+
+        # 计算相对路径
+        image_rel_path = ''
+        if saved_image_name:
+            image_full = os.path.join(product_dir, saved_image_name)
+            image_rel_path = os.path.relpath(image_full, PROJECT_ROOT).replace(os.sep, '/')
+        cn_rel_path = os.path.relpath(cn_path, PROJECT_ROOT).replace(os.sep, '/')
+        jp_rel_path = os.path.relpath(jp_path, PROJECT_ROOT).replace(os.sep, '/')
+
+        self._send_json_response({
+            "success": True,
+            "imagePath": image_rel_path,
+            "descCnPath": cn_rel_path,
+            "descJpPath": jp_rel_path,
+            "nameZh": name_zh,
+            "nameJa": name_ja
+        })
+
+    def _api_delete_product(self):
+        """POST /api/delete-product - 删除产品"""
+        content_length = int(self.headers.get('Content-Length', 0))
+        if content_length == 0:
+            self._send_error_json("请求体为空", 400)
+            return
+
+        raw_body = self.rfile.read(content_length)
         try:
-            with socketserver.TCPServer(("", port), APIHandler) as test_server:
-                return port
+            data = json.loads(raw_body.decode('utf-8'))
+        except json.JSONDecodeError as e:
+            self._send_error_json("JSON 解析失败: " + str(e), 400)
+            return
+
+        category = data.get('category', '')
+        subcategory = data.get('subcategory', '')
+        name_zh = data.get('nameZh', '')
+
+        if not category or not subcategory or not name_zh:
+            self._send_error_json("缺少必要参数", 400)
+            return
+
+        product_dir = os.path.join(PROJECT_ROOT, '产品描述', category, subcategory)
+        for suffix in ['.webp', '.png', '.jpg', '.jpeg', '_cn.md', '_jp.md']:
+            file_path = os.path.join(product_dir, name_zh + suffix)
+            if os.path.exists(file_path):
+                os.remove(file_path)
+
+        try:
+            os.rmdir(product_dir)
         except OSError:
-            port += 1
-    return start_port  # 如果找不到可用端口，返回原始端口
+            pass
+
+        self._remove_from_products_json(category, subcategory, name_zh)
+        self._send_json_response({"success": True})
+
+    def _api_read_description(self):
+        """GET /api/read-description?path=xxx - 读取 MD 文件内容"""
+        parsed = urllib.parse.urlparse(self.path)
+        query = urllib.parse.parse_qs(parsed.query)
+        file_path = query.get('path', [''])[0]
+
+        if not file_path:
+            self._send_error_json("缺少 path 参数", 400)
+            return
+
+        full_path = os.path.join(PROJECT_ROOT, file_path)
+        if not os.path.exists(full_path) or not os.path.isfile(full_path):
+            self._send_json_response({"content": ""})
+            return
+
+        try:
+            with open(full_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            self._send_json_response({"content": content})
+        except Exception as e:
+            self._send_error_json("读取文件失败: " + str(e))
+
+    def _api_save_description(self):
+        """POST /api/save-description - 写入 MD 文件内容"""
+        content_length = int(self.headers.get('Content-Length', 0))
+        if content_length == 0:
+            self._send_error_json("请求体为空", 400)
+            return
+
+        raw_body = self.rfile.read(content_length)
+        try:
+            data = json.loads(raw_body.decode('utf-8'))
+        except json.JSONDecodeError as e:
+            self._send_error_json("JSON 解析失败: " + str(e), 400)
+            return
+
+        file_path = data.get('path', '')
+        content = data.get('content', '')
+
+        if not file_path:
+            self._send_error_json("缺少 path 参数", 400)
+            return
+
+        full_path = os.path.join(PROJECT_ROOT, file_path)
+        os.makedirs(os.path.dirname(full_path), exist_ok=True)
+
+        try:
+            with open(full_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            self._send_json_response({"success": True})
+        except Exception as e:
+            self._send_error_json("写入文件失败: " + str(e))
 
 
 def main():
-    # 查找可用端口
-    port = find_available_port(PORT)
+    port = PORT
 
-    with socketserver.TCPServer(("", port), APIHandler) as httpd:
+    # 允许地址重用，watchdog重启时旧端口未释放也能绑定
+    socketserver.TCPServer.allow_reuse_address = True
+    ThreadingHTTPServer.allow_reuse_address = True
+
+    try:
+        httpd = ThreadingHTTPServer(("", port), APIHandler)
+    except OSError as e:
+        print("========================================")
+        print("  错误：端口 {} 启动失败".format(port))
+        print("========================================")
+        print()
+        print(f"  {e}")
+        print()
+        print("  请检查：")
+        print(f"    1. 端口 {port} 是否已被其他进程占用")
+        print(f"       使用 lsof -i :{port} 查看占用进程")
+        print(f"    2. 若为 Docker 部署，检查容器是否已在运行：")
+        print(f"       docker ps | grep digital-signage")
+        print(f"    3. 确认只有一个服务器实例在运行")
+        print()
+        sys.exit(1)
+
+    with httpd:
         url = f"http://localhost:{port}/index.html"
         print("========================================")
         print("  数字标牌产品介绍页面")
@@ -409,8 +861,9 @@ def main():
         print("  按 Ctrl+C 停止服务器")
         print()
 
-        # 自动打开浏览器
-        webbrowser.open(url)
+        # 自动打开浏览器（Docker 容器内跳过）
+        if not os.path.exists('/.dockerenv') and not os.environ.get('DOCKER_MODE'):
+            webbrowser.open(url)
 
         # 启动服务器
         try:

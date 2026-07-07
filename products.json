@@ -1,0 +1,106 @@
+{
+  "products": [
+    {
+      "category": "专业视觉显示类",
+      "subcategory": "商用液晶显示器",
+      "nameZh": "商用液晶显示器",
+      "nameJa": "業務用液晶ディスプレイ"
+    },
+    {
+      "category": "交互与自助服务类",
+      "subcategory": "自助点单机",
+      "nameZh": "自助点单机 - 落地式",
+      "nameJa": "セルフオーダー機 - 据え置き型"
+    },
+    {
+      "category": "交互与自助服务类",
+      "subcategory": "自助点单机",
+      "nameZh": "自助点单机 - 桌面式",
+      "nameJa": "セルフオーダー機 - 卓上型"
+    },
+    {
+      "category": "广告播放与信息发布类",
+      "subcategory": "室内一体式广告机",
+      "nameZh": "室内桌面型广告机",
+      "nameJa": "屋内卓上型広告機"
+    },
+    {
+      "category": "广告播放与信息发布类",
+      "subcategory": "可移动广告机",
+      "nameZh": "可移动广告机 - 太阳能款",
+      "nameJa": "移動式広告機 - ソーラーモデル"
+    },
+    {
+      "category": "专业视觉显示类",
+      "subcategory": "商用异形液晶显示器",
+      "nameZh": "商用横长形液晶显示器",
+      "nameJa": "業務用横長形液晶ディスプレイ"
+    },
+    {
+      "category": "广告播放与信息发布类",
+      "subcategory": "可移动广告机",
+      "nameZh": "室外可移动广告机",
+      "nameJa": "屋外可移動広告機"
+    },
+    {
+      "category": "专业视觉显示类",
+      "subcategory": "商用 LED 显示屏",
+      "nameZh": "商用 LED 显示屏",
+      "nameJa": "業務用LEDディスプレイ"
+    },
+    {
+      "category": "广告播放与信息发布类",
+      "subcategory": "室外一体式广告机",
+      "nameZh": "室外一体式广告机 - 落地款",
+      "nameJa": "屋外一体型広告機 - 据置きタイプ"
+    },
+    {
+      "category": "交互与自助服务类",
+      "subcategory": "商用防爆电视",
+      "nameZh": "防爆电视 - 卡拉OK用",
+      "nameJa": "防爆テレビ - カラオケ用"
+    },
+    {
+      "category": "广告播放与信息发布类",
+      "subcategory": "可移动广告机",
+      "nameZh": "电子水牌 - 样式1",
+      "nameJa": "電子サインボード - スタイル 1"
+    },
+    {
+      "category": "专业视觉显示类",
+      "subcategory": "商用拼接液晶显示屏",
+      "nameZh": "商用拼接液晶显示屏",
+      "nameJa": "業務用マルチ液晶ディスプレイ"
+    },
+    {
+      "category": "广告播放与信息发布类",
+      "subcategory": "室内一体式广告机",
+      "nameZh": "室内一体式广告机 - 样式2",
+      "nameJa": "屋内一体型広告機 - スタイル2"
+    },
+    {
+      "category": "交互与自助服务类",
+      "subcategory": "会议平板",
+      "nameZh": "会议平板",
+      "nameJa": "会議用インタラクティブボード"
+    },
+    {
+      "category": "专业视觉显示类",
+      "subcategory": "商用 LED 显示屏",
+      "nameZh": "LED 一体机",
+      "nameJa": "LED一体機"
+    },
+    {
+      "category": "广告播放与信息发布类",
+      "subcategory": "特殊用途广告机",
+      "nameZh": "墨水屏广告机",
+      "nameJa": "電子ペーパー広告機"
+    },
+    {
+      "category": "交互与自助服务类",
+      "subcategory": "自助点单机",
+      "nameZh": "壁挂式平板终端",
+      "nameJa": "壁掛け型タブレット端末"
+    }
+  ]
+}

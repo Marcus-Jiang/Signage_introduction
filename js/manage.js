@@ -12,7 +12,13 @@ let dragHotspotEl = null;       // 正在拖拽的热点 DOM 元素
 let dragHotspotIndex = -1;      // 正在拖拽的热点数据索引
 let imageFiles = [];            // 可用图片文件列表
 let descFiles = [];             // 可用描述文件列表
-let dialogSelectedFile = null;  // 对话框中选择的图片文件对象
+let sceneImageSelectedFile = null;  // 添加场景图对话框中选择的图片文件对象
+let productsData = [];              // 产品列表（从 /api/list-products 加载）
+let currentProductIndex = -1;       // 当前选中产品索引
+let productSelectedFile = null;     // 产品图片上传区选择的文件
+let productEditingNew = false;      // 是否新建产品模式
+let isDirty = false;                // 是否有未保存的更改
+let categoryInputSaveTimer = null;  // 分类名输入防抖保存计时器
 
 // ==================== 初始化 ====================
 document.addEventListener('DOMContentLoaded', async () => {
@@ -20,24 +26,37 @@ document.addEventListener('DOMContentLoaded', async () => {
     bindToolbarEvents();
     bindEditorEvents();
     bindDialogEvents();
+    bindTabEvents();
+    bindProductEvents();
 
     // 加载数据
     await loadMappingData();
     await loadImageList();
     await loadDescriptionList();
+    await loadProductList();
 
     // 渲染场景列表
     renderSceneList();
+
+    // 离开页面前警告未保存的更改
+    window.addEventListener('beforeunload', (e) => {
+        if (isDirty) {
+            e.preventDefault();
+            e.returnValue = '';
+        }
+    });
 });
 
 // ==================== 数据加载 ====================
 
-/** 从服务器加载 mapping.json 数据 */
+/** 从服务器加载 mapping.json 数据（带缓存控制） */
 async function loadMappingData() {
     try {
-        const resp = await fetch('mapping.json');
+        // 添加时间戳查询参数防止浏览器缓存
+        const resp = await fetch('mapping.json?t=' + Date.now());
         if (!resp.ok) throw new Error('加载失败');
         mappingData = await resp.json();
+        markClean();
     } catch (e) {
         console.error('加载 mapping.json 失败:', e);
         showToast('数据加载失败，请刷新页面重试', 'error');
@@ -79,12 +98,29 @@ function bindToolbarEvents() {
     document.getElementById('btn-save').addEventListener('click', saveMapping);
 }
 
-/** 保存 mapping 数据到服务器 */
+/** 标记数据已修改（脏状态） */
+function markDirty() {
+    isDirty = true;
+    const indicator = document.getElementById('dirty-indicator');
+    if (indicator) indicator.style.display = '';
+}
+
+/** 标记数据已保存（清除脏状态） */
+function markClean() {
+    isDirty = false;
+    const indicator = document.getElementById('dirty-indicator');
+    if (indicator) indicator.style.display = 'none';
+}
+
+/** 保存 mapping 数据到服务器
+ * @returns {Promise<boolean>} true=保存成功，false=保存失败
+ */
 async function saveMapping() {
     const statusEl = document.getElementById('save-status');
     statusEl.textContent = '保存中...';
     statusEl.className = '';
 
+    let success = false;
     try {
         const resp = await fetch('/api/save-mapping', {
             method: 'POST',
@@ -95,6 +131,8 @@ async function saveMapping() {
         statusEl.textContent = '已保存 ✓';
         statusEl.className = 'success';
         showToast('配置保存成功', 'success');
+        markClean();
+        success = true;
     } catch (e) {
         statusEl.textContent = '保存失败 ✗';
         statusEl.className = 'error';
@@ -106,36 +144,138 @@ async function saveMapping() {
         statusEl.textContent = '';
         statusEl.className = '';
     }, 5000);
+
+    return success;
 }
 
-// ==================== 场景列表渲染 ====================
+// ==================== 场景排序（拖拽） ====================
 
-/** 渲染左栏场景列表（按文件夹分组折叠） */
-function renderSceneList() {
-    const listEl = document.getElementById('scene-list');
-    listEl.innerHTML = '';
+/** 拖拽状态：null 表示未拖拽，{ type, ... } 表示正在拖拽 */
+let dragState = null;
 
-    // 按场景图子文件夹分组
+/** 计算场景分组（按文件夹名），返回有序分组结构
+ * @returns {Array<{name: string, indices: number[]}>} 分组列表
+ */
+function computeSceneGroups() {
     const groups = [];
-    const groupMap = {}; // groupName -> groupIndex
-
+    const groupMap = {};
     mappingData.scenes.forEach((scene, index) => {
         const groupName = getSceneGroupName(scene);
         if (groupMap[groupName] === undefined) {
             groupMap[groupName] = groups.length;
-            groups.push({ name: groupName, items: [] });
+            groups.push({ name: groupName, indices: [] });
         }
-        groups[groupMap[groupName]].items.push({ scene, index });
+        groups[groupMap[groupName]].indices.push(index);
     });
+    return groups;
+}
+
+/** 获取当前选中场景的 ID（用于排序后恢复选中状态） */
+function getCurrentSceneId() {
+    if (currentSceneIndex >= 0 && mappingData.scenes[currentSceneIndex]) {
+        return mappingData.scenes[currentSceneIndex].id;
+    }
+    return null;
+}
+
+/** 根据场景 ID 恢复 currentSceneIndex */
+function restoreCurrentSceneIndex(sceneId) {
+    if (!sceneId) {
+        currentSceneIndex = -1;
+        return;
+    }
+    currentSceneIndex = mappingData.scenes.findIndex(s => s.id === sceneId);
+}
+
+/** 重排分组：将 fromGroupIdx 的分组移动到指定位置
+ * @param {number} fromGroupIdx - 源分组索引
+ * @param {number} toGroupIdx - 目标分组索引
+ * @param {boolean} insertBefore - true=插入到目标前，false=插入到目标后
+ */
+function reorderGroups(fromGroupIdx, toGroupIdx, insertBefore) {
+    if (fromGroupIdx === toGroupIdx) return;
+    const groups = computeSceneGroups();
+    const moved = groups.splice(fromGroupIdx, 1)[0];
+
+    let targetIdx = toGroupIdx;
+    if (fromGroupIdx < toGroupIdx) targetIdx--;
+    if (!insertBefore) targetIdx++;
+    targetIdx = Math.max(0, Math.min(targetIdx, groups.length));
+    groups.splice(targetIdx, 0, moved);
+
+    const currentId = getCurrentSceneId();
+    const newScenes = [];
+    groups.forEach(g => g.indices.forEach(i => newScenes.push(mappingData.scenes[i])));
+    mappingData.scenes = newScenes;
+    restoreCurrentSceneIndex(currentId);
+    renderSceneList();
+    // 自动保存排序变更
+    saveMapping();
+}
+
+/** 重排组内场景：将 fromIdx 的场景移动到指定位置
+ * @param {number} fromIdx - 源场景索引
+ * @param {number} toIdx - 目标场景索引
+ * @param {boolean} insertBefore - true=插入到目标前，false=插入到目标后
+ */
+function reorderScenes(fromIdx, toIdx, insertBefore) {
+    if (fromIdx === toIdx) return;
+    const currentId = getCurrentSceneId();
+    const moved = mappingData.scenes.splice(fromIdx, 1)[0];
+
+    let targetIdx = toIdx;
+    if (fromIdx < toIdx) targetIdx--;
+    if (!insertBefore) targetIdx++;
+    targetIdx = Math.max(0, Math.min(targetIdx, mappingData.scenes.length));
+    mappingData.scenes.splice(targetIdx, 0, moved);
+
+    restoreCurrentSceneIndex(currentId);
+    renderSceneList();
+    // 自动保存排序变更
+    saveMapping();
+}
+
+/** 清除所有拖拽悬停样式 */
+function clearDragOverStyles() {
+    document.querySelectorAll('.drag-over-top, .drag-over-bottom').forEach(el => {
+        el.classList.remove('drag-over-top', 'drag-over-bottom');
+    });
+}
+
+/** 判断鼠标在元素的上半还是下半
+ * @returns {boolean} true=上半部分
+ */
+function isMouseInTopHalf(e, el) {
+    const rect = el.getBoundingClientRect();
+    return e.clientY < rect.top + rect.height / 2;
+}
+
+// ==================== 场景列表渲染 ====================
+
+/** 渲染左栏场景列表（按文件夹分组折叠，支持拖拽排序） */
+function renderSceneList() {
+    const listEl = document.getElementById('scene-list');
+    listEl.innerHTML = '';
+
+    // 使用统一的分组计算函数
+    const groups = computeSceneGroups();
 
     // 渲染每个分组
-    groups.forEach(group => {
+    groups.forEach((group, groupIndex) => {
         const groupEl = document.createElement('div');
         groupEl.className = 'scene-group';
 
         // 分组标题
         const header = document.createElement('div');
         header.className = 'scene-group-header';
+        header.draggable = true;
+        header.dataset.groupIndex = groupIndex;
+
+        // 拖拽手柄
+        const handle = document.createElement('span');
+        handle.className = 'scene-group-drag-handle';
+        handle.textContent = '⠿';
+        handle.title = '拖拽调整大类顺序';
 
         const arrow = document.createElement('span');
         arrow.className = 'scene-group-arrow';
@@ -147,23 +287,69 @@ function renderSceneList() {
 
         const count = document.createElement('span');
         count.className = 'scene-group-count';
-        count.textContent = `(${group.items.length})`;
+        count.textContent = `(${group.indices.length})`;
 
+        header.appendChild(handle);
         header.appendChild(arrow);
         header.appendChild(name);
         header.appendChild(count);
 
-        // 点击折叠/展开
-        header.addEventListener('click', () => {
+        // 点击折叠/展开（排除拖拽手柄区域）
+        header.addEventListener('click', (e) => {
+            if (e.target.classList.contains('scene-group-drag-handle')) return;
             groupEl.classList.toggle('collapsed');
+        });
+
+        // --- 分组拖拽排序（大类排序）---
+        header.addEventListener('dragstart', (e) => {
+            dragState = { type: 'group', fromGroupIndex: groupIndex };
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', 'group');
+            header.classList.add('dragging');
+        });
+
+        header.addEventListener('dragend', () => {
+            header.classList.remove('dragging');
+            clearDragOverStyles();
+            dragState = null;
+        });
+
+        header.addEventListener('dragover', (e) => {
+            if (!dragState || dragState.type !== 'group') return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            clearDragOverStyles();
+            if (isMouseInTopHalf(e, header)) {
+                header.classList.add('drag-over-top');
+            } else {
+                header.classList.add('drag-over-bottom');
+            }
+        });
+
+        header.addEventListener('dragleave', (e) => {
+            const rect = header.getBoundingClientRect();
+            if (e.clientX < rect.left || e.clientX >= rect.right ||
+                e.clientY < rect.top || e.clientY >= rect.bottom) {
+                header.classList.remove('drag-over-top', 'drag-over-bottom');
+            }
+        });
+
+        header.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!dragState || dragState.type !== 'group') return;
+            const insertBefore = isMouseInTopHalf(e, header);
+            reorderGroups(dragState.fromGroupIndex, groupIndex, insertBefore);
+            clearDragOverStyles();
+            dragState = null;
         });
 
         // 分组内容区
         const itemsContainer = document.createElement('div');
         itemsContainer.className = 'scene-group-items';
 
-        group.items.forEach(({ scene, index }) => {
-            const item = createSceneItem(scene, index);
+        group.indices.forEach(sceneIndex => {
+            const item = createSceneItem(mappingData.scenes[sceneIndex], sceneIndex, group.name);
             itemsContainer.appendChild(item);
         });
 
@@ -173,17 +359,27 @@ function renderSceneList() {
     });
 }
 
-/** 创建单个场景项 DOM 元素 */
-function createSceneItem(scene, index) {
+/** 创建单个场景项 DOM 元素
+ * @param {Object} scene - 场景数据
+ * @param {number} index - 场景在 scenes 数组中的索引
+ * @param {string} groupName - 所属分组名（用于组内排序约束）
+ */
+function createSceneItem(scene, index, groupName) {
     const item = document.createElement('div');
     item.className = 'scene-item' + (index === currentSceneIndex ? ' active' : '');
     item.dataset.index = index;
+    item.dataset.groupName = groupName;
+    item.draggable = true;
 
     // 缩略图
     const thumb = document.createElement('img');
     thumb.className = 'scene-item-thumb';
-    thumb.src = encodeURI(scene.image);
-    thumb.alt = scene.category.zh;
+    if (scene.image) {
+        thumb.src = encodeURI(scene.image);
+    } else {
+        thumb.style.background = '#e2e8f0';
+    }
+    thumb.alt = scene.category.zh || '';
     thumb.loading = 'lazy';
     // 图片加载失败时使用占位
     thumb.onerror = () => { thumb.src = ''; thumb.style.background = '#e2e8f0'; };
@@ -242,6 +438,53 @@ function createSceneItem(scene, index) {
     item.appendChild(info);
     item.appendChild(delBtn);
 
+    // --- 场景项拖拽排序（组内排序）---
+    item.addEventListener('dragstart', (e) => {
+        dragState = { type: 'scene', fromIndex: index, fromGroupName: groupName };
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', 'scene');
+        item.classList.add('dragging');
+        e.stopPropagation();
+    });
+
+    item.addEventListener('dragend', () => {
+        item.classList.remove('dragging');
+        clearDragOverStyles();
+        dragState = null;
+    });
+
+    item.addEventListener('dragover', (e) => {
+        if (!dragState || dragState.type !== 'scene') return;
+        if (dragState.fromGroupName !== groupName) return; // 仅同组可排序
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        clearDragOverStyles();
+        if (isMouseInTopHalf(e, item)) {
+            item.classList.add('drag-over-top');
+        } else {
+            item.classList.add('drag-over-bottom');
+        }
+    });
+
+    item.addEventListener('dragleave', (e) => {
+        const rect = item.getBoundingClientRect();
+        if (e.clientX < rect.left || e.clientX >= rect.right ||
+            e.clientY < rect.top || e.clientY >= rect.bottom) {
+            item.classList.remove('drag-over-top', 'drag-over-bottom');
+        }
+    });
+
+    item.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!dragState || dragState.type !== 'scene') return;
+        if (dragState.fromGroupName !== groupName) return;
+        const insertBefore = isMouseInTopHalf(e, item);
+        reorderScenes(dragState.fromIndex, index, insertBefore);
+        clearDragOverStyles();
+        dragState = null;
+    });
+
     // 点击切换场景
     item.addEventListener('click', () => {
         selectScene(index);
@@ -250,26 +493,32 @@ function createSceneItem(scene, index) {
     return item;
 }
 
-/** 从场景图片路径中提取分组名（子文件夹名）
- * 例如 "场景图/便利店场景/便利店场景1.webp" -> "便利店场景"
+/** 从场景数据中提取分组名
+ * 优先使用 category.zh，为空时从图片路径提取子文件夹名
  */
 function getSceneGroupName(scene) {
-    if (!scene || !scene.image) return '未分类';
-    const parts = scene.image.split('/');
-    if (parts.length >= 2 && parts[0] === '场景图') {
-        return parts[1];
+    if (!scene) return '未分类';
+    if (scene.category && scene.category.zh) return scene.category.zh;
+    if (scene.image) {
+        const parts = scene.image.split('/');
+        if (parts.length >= 2 && parts[0] === '场景图') return parts[1];
     }
     return '未分类';
 }
 
-/** 获取场景的显示名称（从图片文件名中提取）
- * 例如 "场景图/便利店场景/便利店场景1.webp" -> "便利店场景1"
+/** 获取场景的显示名称
+ * 优先使用 name.zh，为空时从图片文件名提取，最后回退到分类名
  */
 function getSceneDisplayName(scene) {
-    if (!scene || !scene.image) return scene.category.zh || scene.category.ja || scene.id;
-    const filename = scene.image.split('/').pop();
-    const nameWithoutExt = filename.replace(/\.\w+$/, '');
-    return nameWithoutExt || scene.category.zh || scene.category.ja || scene.id;
+    if (!scene) return '';
+    if (scene.name && scene.name.zh) return scene.name.zh;
+    if (scene.name && scene.name.ja) return scene.name.ja;
+    if (scene.image) {
+        const filename = scene.image.split('/').pop();
+        const nameWithoutExt = filename.replace(/\.\w+$/, '');
+        if (nameWithoutExt) return nameWithoutExt;
+    }
+    return (scene.category && scene.category.zh) || (scene.category && scene.category.ja) || scene.id;
 }
 
 /** 更新场景列表中单个场景项的显示名称 */
@@ -306,19 +555,25 @@ function selectScene(index) {
 // ==================== 场景编辑区 ====================
 
 function bindEditorEvents() {
-    // 分类名输入框 - 实时更新数据
+    // 分类名输入框 - 实时更新数据 + 防抖自动保存
     document.getElementById('input-category-ja').addEventListener('input', (e) => {
         if (currentSceneIndex < 0) return;
         mappingData.scenes[currentSceneIndex].category.ja = e.target.value;
-        // 同步更新场景列表中的显示名称
         updateSceneListItem(currentSceneIndex);
+        markDirty();
+        // 防抖自动保存：停止输入1秒后保存
+        clearTimeout(categoryInputSaveTimer);
+        categoryInputSaveTimer = setTimeout(() => saveMapping(), 1000);
     });
 
     document.getElementById('input-category-zh').addEventListener('input', (e) => {
         if (currentSceneIndex < 0) return;
         mappingData.scenes[currentSceneIndex].category.zh = e.target.value;
-        // 同步更新场景列表中的显示名称
         updateSceneListItem(currentSceneIndex);
+        markDirty();
+        // 防抖自动保存：停止输入1秒后保存
+        clearTimeout(categoryInputSaveTimer);
+        categoryInputSaveTimer = setTimeout(() => saveMapping(), 1000);
     });
 
     // 更换场景图按钮
@@ -343,11 +598,19 @@ function bindEditorEvents() {
             updateSceneEditor();
             renderSceneList();
             showToast('场景图已更新' + (result.converted ? '（已转换为webp）' : ''), 'success');
+            // 自动保存
+            await saveMapping();
         } catch (err) {
             showToast('场景图上传失败: ' + err.message, 'error');
         }
         e.target.value = '';
     });
+
+    // 添加场景图
+    document.getElementById('btn-add-scene-image').addEventListener('click', openSceneImageDialog);
+
+    // 重命名场景图
+    document.getElementById('btn-rename-scene-image').addEventListener('click', openRenameSceneDialog);
 
     // 添加热点
     document.getElementById('btn-add-hotspot').addEventListener('click', addHotspot);
@@ -384,11 +647,22 @@ function updateSceneEditor() {
         return;
     }
 
+    inputJa.value = scene.category.ja || '';
+    inputZh.value = scene.category.zh || '';
+
+    if (!scene.image) {
+        // 场景没有图片，显示提示
+        img.style.display = 'none';
+        img.src = '';
+        noHint.style.display = '';
+        noHint.textContent = '此场景还没有场景图，请点击"添加场景图"上传图片';
+        clearHotspotOverlay();
+        return;
+    }
+
     noHint.style.display = 'none';
     img.style.display = '';
     img.src = encodeURI(scene.image);
-    inputJa.value = scene.category.ja || '';
-    inputZh.value = scene.category.zh || '';
 
     // 等待图片加载后渲染热点
     if (img.complete) {
@@ -481,7 +755,7 @@ function updateCoordInfo() {
 }
 
 /** 添加热点 */
-function addHotspot() {
+async function addHotspot() {
     const scene = getCurrentScene();
     if (!scene) {
         showToast('请先选择一个场景', 'info');
@@ -499,11 +773,15 @@ function addHotspot() {
     scene.hotspots.push(newHotspot);
     renderHotspots();
     selectHotspot(scene.hotspots.length - 1);
+    renderSceneList(); // 更新场景列表中的热点计数
     showToast('已添加新热点', 'success');
+
+    // 自动保存
+    await saveMapping();
 }
 
 /** 删除选中热点 */
-function deleteSelectedHotspot() {
+async function deleteSelectedHotspot() {
     const scene = getCurrentScene();
     if (!scene || selectedHotspotIndex < 0) {
         showToast('请先选中一个热点', 'info');
@@ -515,7 +793,11 @@ function deleteSelectedHotspot() {
     renderHotspots();
     updateCoordInfo();
     updateProductEditor();
+    renderSceneList(); // 更新场景列表中的热点计数
     showToast('热点已删除', 'success');
+
+    // 自动保存
+    await saveMapping();
 }
 
 // ==================== 热点拖拽 ====================
@@ -560,7 +842,7 @@ function onDrag(e) {
 }
 
 /** 结束拖拽 */
-function endDrag() {
+async function endDrag() {
     if (!isDragging) return;
     isDragging = false;
 
@@ -569,6 +851,9 @@ function endDrag() {
     }
     dragHotspotEl = null;
     dragHotspotIndex = -1;
+
+    // 拖拽结束后自动保存热点位置
+    await saveMapping();
 }
 
 // ==================== 场景图拖拽上传 ====================
@@ -648,6 +933,8 @@ function bindSceneDropEvents() {
             updateSceneEditor();
             renderSceneList();
             showToast('场景图已更新' + (result.converted ? '（已转换为webp）' : ''), 'success');
+            // 自动保存
+            await saveMapping();
         } catch (err) {
             showToast('场景图上传失败: ' + err.message, 'error');
         } finally {
@@ -703,178 +990,161 @@ function renderProductList(hotspot) {
     });
 }
 
-/** 创建一个产品编辑项 */
+/** 创建一个产品编辑项（下拉选择产品） */
 function createProductEditItem(product, index, hotspot) {
     const item = document.createElement('div');
     item.className = 'product-edit-item';
 
-    // 头部：缩略图 + 字段区
-    const header = document.createElement('div');
-    header.className = 'product-edit-header';
+    // 产品选择下拉框
+    const selectWrapper = document.createElement('div');
+    selectWrapper.className = 'product-field';
 
-    // 缩略图（同时作为拖拽上传区域）
+    const selectLabel = document.createElement('label');
+    selectLabel.textContent = '选择产品';
+    selectWrapper.appendChild(selectLabel);
+
+    const select = document.createElement('select');
+    select.className = 'product-select-dropdown';
+
+    // 默认选项
+    const defaultOpt = document.createElement('option');
+    defaultOpt.value = '';
+    defaultOpt.textContent = '-- 请选择产品 --';
+    select.appendChild(defaultOpt);
+
+    // 按 category > subcategory 分组加载产品列表
+    const groups = {};
+    productsData.forEach(p => {
+        const cat = p.category || '未分类';
+        const subcat = p.subcategory || '未分类';
+        if (!groups[cat]) groups[cat] = {};
+        if (!groups[cat][subcat]) groups[cat][subcat] = [];
+        groups[cat][subcat].push(p);
+    });
+
+    Object.keys(groups).sort().forEach(catName => {
+        const catGroup = document.createElement('optgroup');
+        catGroup.label = catName;
+        Object.keys(groups[catName]).sort().forEach(subcatName => {
+            groups[catName][subcatName].forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.imagePath;
+                opt.textContent = p.nameZh || p.nameJa || '未命名';
+                if (product.image && product.image === p.imagePath) {
+                    opt.selected = true;
+                }
+                catGroup.appendChild(opt);
+            });
+        });
+        select.appendChild(catGroup);
+    });
+
+    // 如果当前产品图片不在列表中，添加自定义选项
+    if (product.image && !productsData.some(p => p.imagePath === product.image)) {
+        const customOpt = document.createElement('option');
+        customOpt.value = product.image;
+        customOpt.textContent = (product.name.zh || product.name.ja || product.image) + ' (未在产品管理中)';
+        customOpt.selected = true;
+        select.appendChild(customOpt);
+    }
+
+    // 缩略图（只读）
     const thumb = document.createElement('img');
     thumb.className = 'product-edit-thumb';
-    thumb.src = encodeURI(product.image);
-    thumb.alt = product.name.zh || '';
+    thumb.src = encodeURI(product.image || '');
     thumb.onerror = () => { thumb.src = ''; thumb.style.background = '#e2e8f0'; };
-    thumb.title = '拖拽图片到此处更换';
 
-    // 产品缩略图拖拽上传事件
-    let thumbDragCounter = 0;
-    thumb.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-    });
-    thumb.addEventListener('dragenter', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (e.dataTransfer && e.dataTransfer.types && e.dataTransfer.types.includes('Files')) {
-            thumbDragCounter++;
-            thumb.classList.add('drag-over');
-        }
-    });
-    thumb.addEventListener('dragleave', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        thumbDragCounter--;
-        if (thumbDragCounter <= 0) {
-            thumbDragCounter = 0;
-            thumb.classList.remove('drag-over');
-        }
-    });
-    thumb.addEventListener('drop', async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        thumbDragCounter = 0;
-        thumb.classList.remove('drag-over');
+    // 产品名称（只读）
+    const nameDisplay = document.createElement('div');
+    nameDisplay.className = 'product-name-text';
+    nameDisplay.textContent = product.name.zh || product.name.ja || '';
 
-        const files = e.dataTransfer.files;
-        if (!files || files.length === 0) return;
+    // 只读信息区
+    const readonlyInfo = document.createElement('div');
+    readonlyInfo.className = 'product-edit-readonly-info';
+    readonlyInfo.style.display = product.image ? 'flex' : 'none';
+    readonlyInfo.appendChild(thumb);
+    readonlyInfo.appendChild(nameDisplay);
 
-        const file = files[0];
-        if (!isImageFile(file)) {
-            showToast('只支持图片格式文件', 'error');
-            return;
-        }
+    // "在产品管理中编辑" 提示
+    const hint = document.createElement('div');
+    hint.className = 'product-select-hint';
+    hint.textContent = '产品信息请在"产品管理"标签页中编辑';
+    hint.style.display = product.image ? 'block' : 'none';
 
-        // 上传产品图
-        thumb.classList.add('upload-loading');
-        try {
-            const result = await uploadImage(file, 'product');
-            product.image = result.path;
-            thumb.src = encodeURI(result.path);
-            await loadImageList();
-            showToast('产品图已更新' + (result.converted ? '（已转换为webp）' : ''), 'success');
-        } catch (err) {
-            showToast('产品图上传失败: ' + err.message, 'error');
-        } finally {
-            thumb.classList.remove('upload-loading');
-        }
-    });
-
-    // 字段区
-    const fields = document.createElement('div');
-    fields.className = 'product-edit-fields';
-
-    // 日文名称
-    const nameJa = createProductField('名称(日文)', product.name.ja, (val) => {
-        product.name.ja = val;
-    });
-    fields.appendChild(nameJa);
-
-    // 中文名称
-    const nameZh = createProductField('名称(中文)', product.name.zh, (val) => {
-        product.name.zh = val;
-    });
-    fields.appendChild(nameZh);
-
-    header.appendChild(thumb);
-    header.appendChild(fields);
-
-    // 产品图片路径选择
-    const imgField = createProductSelectField('产品图片', product.image, imageFiles, (val) => {
-        product.image = val;
-        thumb.src = encodeURI(val);
-    });
-
-    // 描述文件路径选择（日文和中文分别选择）
-    const descJaValue = (product.descriptionFile && typeof product.descriptionFile === 'object')
-        ? product.descriptionFile.ja || ''
-        : (typeof product.descriptionFile === 'string' ? product.descriptionFile : '');
-    const descZhValue = (product.descriptionFile && typeof product.descriptionFile === 'object')
-        ? product.descriptionFile.zh || ''
-        : (typeof product.descriptionFile === 'string' ? product.descriptionFile : '');
-
-    // 筛选日文描述文件（文件名包含 _jp 或 .ja.）
-    const descJaFiles = descFiles.filter(f => {
-        const name = f.split('/').pop();
-        return name.includes('_jp') || name.includes('.ja.');
-    });
-    // 筛选中文描述文件（文件名包含 _cn 或 .zh.）
-    const descZhFiles = descFiles.filter(f => {
-        const name = f.split('/').pop();
-        return name.includes('_cn') || name.includes('.zh.');
-    });
-
-    const descJaField = createProductSelectField('描述文件(日文)', descJaValue, descJaFiles, (val) => {
-        // 确保 descriptionFile 是对象格式
-        if (!product.descriptionFile || typeof product.descriptionFile === 'string') {
+    // 下拉选择事件
+    select.addEventListener('change', async (e) => {
+        const selectedPath = e.target.value;
+        const selected = productsData.find(p => p.imagePath === selectedPath);
+        if (selected) {
+            product.name = { ja: selected.nameJa || '', zh: selected.nameZh || '' };
+            product.image = selected.imagePath;
+            product.descriptionFile = {
+                ja: selected.descJpPath || '',
+                zh: selected.descCnPath || ''
+            };
+            thumb.src = encodeURI(selected.imagePath);
+            nameDisplay.textContent = selected.nameZh || selected.nameJa || '未命名';
+            readonlyInfo.style.display = 'flex';
+            hint.style.display = 'block';
+        } else {
+            product.name = { ja: '', zh: '' };
+            product.image = '';
             product.descriptionFile = { ja: '', zh: '' };
+            thumb.src = '';
+            nameDisplay.textContent = '';
+            readonlyInfo.style.display = 'none';
+            hint.style.display = 'none';
         }
-        product.descriptionFile.ja = val;
+        // 自动保存产品关联变更
+        await saveMapping();
     });
 
-    const descZhField = createProductSelectField('描述文件(中文)', descZhValue, descZhFiles, (val) => {
-        // 确保 descriptionFile 是对象格式
-        if (!product.descriptionFile || typeof product.descriptionFile === 'string') {
-            product.descriptionFile = { ja: '', zh: '' };
+    selectWrapper.appendChild(select);
+    item.appendChild(selectWrapper);
+    item.appendChild(readonlyInfo);
+    item.appendChild(hint);
+
+    // 产品引用信息：显示该产品被哪些场景引用
+    if (product.image) {
+        const usageData = getProductUsageCount(product.image);
+        if (usageData.count > 0) {
+            const usageInfo = document.createElement('div');
+            usageInfo.className = 'product-usage-info';
+            usageInfo.innerHTML = '被 <span class="usage-count">' + usageData.scenes.length + '</span> 个场景引用';
+            usageInfo.addEventListener('click', () => {
+                const existing = usageInfo.querySelector('.product-usage-scenes');
+                if (existing) {
+                    existing.remove();
+                } else {
+                    const detail = document.createElement('div');
+                    detail.className = 'product-usage-scenes';
+                    usageData.scenes.forEach(s => {
+                        const si = document.createElement('div');
+                        si.className = 'usage-scene-item';
+                        si.textContent = '· ' + s;
+                        detail.appendChild(si);
+                    });
+                    usageInfo.appendChild(detail);
+                }
+            });
+            item.appendChild(usageInfo);
         }
-        product.descriptionFile.zh = val;
-    });
+    }
 
     // 删除按钮
     const delBtn = document.createElement('button');
     delBtn.className = 'product-edit-delete';
     delBtn.textContent = '×';
     delBtn.title = '删除此产品';
-    delBtn.addEventListener('click', () => {
+    delBtn.addEventListener('click', async () => {
         hotspot.products.splice(index, 1);
         renderProductList(hotspot);
+        renderSceneList(); // 更新场景列表中的产品计数
         showToast('产品已移除', 'success');
+        // 自动保存
+        await saveMapping();
     });
-
-    item.appendChild(header);
-
-    // 产品引用信息：显示该产品被哪些场景引用
-    const usageData = getProductUsageCount(product.image);
-    if (usageData.count > 0) {
-        const usageInfo = document.createElement('div');
-        usageInfo.className = 'product-usage-info';
-        usageInfo.innerHTML = `被 <span class="usage-count">${usageData.scenes.length}</span> 个场景引用`;
-        // 点击展开/折叠引用详情
-        usageInfo.addEventListener('click', () => {
-            const existing = usageInfo.querySelector('.product-usage-scenes');
-            if (existing) {
-                existing.remove();
-            } else {
-                const detail = document.createElement('div');
-                detail.className = 'product-usage-scenes';
-                usageData.scenes.forEach(s => {
-                    const si = document.createElement('div');
-                    si.className = 'usage-scene-item';
-                    si.textContent = '· ' + s;
-                    detail.appendChild(si);
-                });
-                usageInfo.appendChild(detail);
-            }
-        });
-        item.appendChild(usageInfo);
-    }
-
-    item.appendChild(imgField);
-    item.appendChild(descJaField);
-    item.appendChild(descZhField);
     item.appendChild(delBtn);
 
     return item;
@@ -940,6 +1210,11 @@ function addProductToHotspot() {
     const scene = getCurrentScene();
     if (!scene || selectedHotspotIndex < 0) return;
 
+    if (productsData.length === 0) {
+        showToast('产品列表为空，请先在"产品管理"中添加产品', 'error');
+        return;
+    }
+
     const hs = scene.hotspots[selectedHotspotIndex];
     const newProduct = {
         name: { ja: '', zh: '' },
@@ -949,7 +1224,7 @@ function addProductToHotspot() {
 
     hs.products.push(newProduct);
     renderProductList(hs);
-    showToast('已添加新产品', 'success');
+    showToast('请从下拉列表中选择产品', 'info');
 
     // 滚动到底部
     const content = document.getElementById('product-editor-content');
@@ -959,7 +1234,7 @@ function addProductToHotspot() {
 // ==================== 场景操作 ====================
 
 /** 删除场景 */
-function deleteScene(index) {
+async function deleteScene(index) {
     if (!confirm(`确定删除场景「${mappingData.scenes[index].category.zh}」吗？`)) return;
 
     mappingData.scenes.splice(index, 1);
@@ -976,6 +1251,9 @@ function deleteScene(index) {
 
     renderSceneList();
     showToast('场景已删除', 'success');
+
+    // 自动保存
+    await saveMapping();
 }
 
 /** 获取当前选中场景 */
@@ -989,12 +1267,10 @@ function getCurrentScene() {
 // ==================== 添加场景对话框 ====================
 
 function bindDialogEvents() {
-    // 打开对话框
+    // 打开添加场景对话框
     document.getElementById('btn-add-scene').addEventListener('click', () => {
-        dialogSelectedFile = null;
         document.getElementById('dialog-category-ja').value = '';
         document.getElementById('dialog-category-zh').value = '';
-        resetDialogDropZone();
         document.getElementById('dialog-overlay').classList.remove('hidden');
     });
 
@@ -1006,41 +1282,52 @@ function bindDialogEvents() {
         if (e.target.id === 'dialog-overlay') closeDialog();
     });
 
-    // 拖拽区域点击选择文件
-    document.getElementById('dialog-drop-zone').addEventListener('click', () => {
-        document.getElementById('dialog-scene-image').click();
-    });
-
-    // 文件选择变化
-    document.getElementById('dialog-scene-image').addEventListener('change', async (e) => {
-        if (!e.target.files.length) return;
-        const file = e.target.files[0];
-        if (!isImageFile(file)) {
-            showToast('请选择图片文件', 'error');
-            e.target.value = '';
-            return;
-        }
-        dialogSelectedFile = file;
-        updateDialogDropZone(file.name);
-    });
-
-    // 对话框拖拽区域事件
-    bindDialogDropEvents();
-
-    // 确认添加
+    // 确认添加场景
     document.getElementById('btn-dialog-confirm').addEventListener('click', confirmAddScene);
+
+    // 添加场景图对话框事件
+    bindSceneImageDialogEvents();
+
+    // 重命名场景图对话框事件
+    bindRenameSceneDialogEvents();
 }
 
-/** 关闭对话框 */
+/** 关闭添加场景对话框 */
 function closeDialog() {
     document.getElementById('dialog-overlay').classList.add('hidden');
-    dialogSelectedFile = null;
-    resetDialogDropZone();
 }
 
-/** 重置对话框拖拽区域到初始状态 */
-function resetDialogDropZone() {
-    const dropZone = document.getElementById('dialog-drop-zone');
+// ==================== 添加场景图对话框 ====================
+
+/** 打开添加场景图对话框 */
+function openSceneImageDialog() {
+    const scene = getCurrentScene();
+    if (!scene) {
+        showToast('请先选择一个场景', 'info');
+        return;
+    }
+
+    // 显示当前场景的分类名
+    const categoryDisplay = scene.category.zh || scene.category.ja || '未命名分类';
+    document.getElementById('scene-image-category').value = categoryDisplay;
+    document.getElementById('scene-image-name-ja').value = '';
+    document.getElementById('scene-image-name-zh').value = '';
+    sceneImageSelectedFile = null;
+    resetSceneImageDropZone();
+
+    document.getElementById('scene-image-dialog-overlay').classList.remove('hidden');
+}
+
+/** 关闭添加场景图对话框 */
+function closeSceneImageDialog() {
+    document.getElementById('scene-image-dialog-overlay').classList.add('hidden');
+    sceneImageSelectedFile = null;
+    resetSceneImageDropZone();
+}
+
+/** 重置场景图拖拽区域到初始状态 */
+function resetSceneImageDropZone() {
+    const dropZone = document.getElementById('scene-image-drop-zone');
     if (!dropZone) return;
     dropZone.classList.remove('drag-over');
     dropZone.innerHTML = `
@@ -1050,9 +1337,9 @@ function resetDialogDropZone() {
     `;
 }
 
-/** 更新对话框拖拽区域显示已选择的文件名 */
-function updateDialogDropZone(filename) {
-    const dropZone = document.getElementById('dialog-drop-zone');
+/** 更新场景图拖拽区域显示已选择的文件名 */
+function updateSceneImageDropZone(filename) {
+    const dropZone = document.getElementById('scene-image-drop-zone');
     if (!dropZone) return;
     dropZone.innerHTML = `
         <div style="color:#22c55e;font-size:18px;">&#10003;</div>
@@ -1061,10 +1348,45 @@ function updateDialogDropZone(filename) {
     `;
 }
 
-/** 绑定对话框拖拽区域的拖放事件 */
-function bindDialogDropEvents() {
-    const dropZone = document.getElementById('dialog-drop-zone');
-    let dialogDragCounter = 0;
+/** 绑定添加场景图对话框事件 */
+function bindSceneImageDialogEvents() {
+    // 取消
+    document.getElementById('btn-scene-image-cancel').addEventListener('click', closeSceneImageDialog);
+
+    // 点击遮罩关闭
+    document.getElementById('scene-image-dialog-overlay').addEventListener('click', (e) => {
+        if (e.target.id === 'scene-image-dialog-overlay') closeSceneImageDialog();
+    });
+
+    // 拖拽区域点击选择文件
+    document.getElementById('scene-image-drop-zone').addEventListener('click', () => {
+        document.getElementById('scene-image-file-input').click();
+    });
+
+    // 文件选择变化
+    document.getElementById('scene-image-file-input').addEventListener('change', async (e) => {
+        if (!e.target.files.length) return;
+        const file = e.target.files[0];
+        if (!isImageFile(file)) {
+            showToast('请选择图片文件', 'error');
+            e.target.value = '';
+            return;
+        }
+        sceneImageSelectedFile = file;
+        updateSceneImageDropZone(file.name);
+    });
+
+    // 拖拽区域事件
+    bindSceneImageDropEvents();
+
+    // 确认添加
+    document.getElementById('btn-scene-image-confirm').addEventListener('click', confirmAddSceneImage);
+}
+
+/** 绑定场景图拖拽区域的拖放事件 */
+function bindSceneImageDropEvents() {
+    const dropZone = document.getElementById('scene-image-drop-zone');
+    let dragCounter = 0;
 
     dropZone.addEventListener('dragover', (e) => {
         e.preventDefault();
@@ -1075,7 +1397,7 @@ function bindDialogDropEvents() {
         e.preventDefault();
         e.stopPropagation();
         if (e.dataTransfer && e.dataTransfer.types && e.dataTransfer.types.includes('Files')) {
-            dialogDragCounter++;
+            dragCounter++;
             dropZone.classList.add('drag-over');
         }
     });
@@ -1083,9 +1405,9 @@ function bindDialogDropEvents() {
     dropZone.addEventListener('dragleave', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        dialogDragCounter--;
-        if (dialogDragCounter <= 0) {
-            dialogDragCounter = 0;
+        dragCounter--;
+        if (dragCounter <= 0) {
+            dragCounter = 0;
             dropZone.classList.remove('drag-over');
         }
     });
@@ -1093,7 +1415,7 @@ function bindDialogDropEvents() {
     dropZone.addEventListener('drop', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        dialogDragCounter = 0;
+        dragCounter = 0;
         dropZone.classList.remove('drag-over');
 
         const files = e.dataTransfer.files;
@@ -1105,12 +1427,168 @@ function bindDialogDropEvents() {
             return;
         }
 
-        dialogSelectedFile = file;
-        updateDialogDropZone(file.name);
+        sceneImageSelectedFile = file;
+        updateSceneImageDropZone(file.name);
     });
 }
 
-/** 确认添加场景 */
+/** 确认添加场景图 */
+async function confirmAddSceneImage() {
+    const scene = getCurrentScene();
+    if (!scene) {
+        showToast('请先选择一个场景', 'error');
+        return;
+    }
+
+    const nameJa = document.getElementById('scene-image-name-ja').value.trim();
+    const nameZh = document.getElementById('scene-image-name-zh').value.trim();
+
+    if (!nameZh && !nameJa) {
+        showToast('请输入至少一个场景图名称', 'error');
+        return;
+    }
+
+    if (!sceneImageSelectedFile) {
+        showToast('请选择场景图片', 'error');
+        return;
+    }
+
+    // 上传图片到场景分类目录
+    const categoryDir = scene.category.zh || scene.category.ja || '';
+    const customFilename = nameZh ? nameZh : sceneImageSelectedFile.name;
+
+    try {
+        const result = await uploadImage(sceneImageSelectedFile, 'scene', categoryDir, customFilename);
+        await loadImageList();
+
+        // 创建新场景条目
+        const newScene = {
+            id: generateSceneId(),
+            category: { ja: scene.category.ja || '', zh: scene.category.zh || '' },
+            name: { ja: nameJa || '', zh: nameZh || '' },
+            image: result.path,
+            hotspots: []
+        };
+
+        mappingData.scenes.push(newScene);
+
+        // 关闭对话框
+        closeSceneImageDialog();
+
+        // 刷新列表并选中新场景
+        renderSceneList();
+        selectScene(mappingData.scenes.length - 1);
+
+        // 自动保存（先保存再提示成功，避免保存失败但用户以为成功）
+        const saved = await saveMapping();
+        if (saved) {
+            showToast('场景图已添加' + (result.converted ? '（已转换为webp）' : ''), 'success');
+        } else {
+            showToast('场景图已上传但保存配置失败，请手动点击保存按钮重试', 'error');
+            markDirty();
+        }
+    } catch (err) {
+        showToast('场景图上传失败: ' + err.message, 'error');
+    }
+}
+
+// ==================== 场景图重命名功能 ====================
+
+/** 绑定重命名场景图对话框事件 */
+function bindRenameSceneDialogEvents() {
+    document.getElementById('btn-rename-scene-cancel').addEventListener('click', closeRenameSceneDialog);
+
+    document.getElementById('rename-scene-dialog-overlay').addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) closeRenameSceneDialog();
+    });
+
+    document.getElementById('btn-rename-scene-confirm').addEventListener('click', confirmRenameSceneImage);
+}
+
+/** 打开重命名场景图对话框 */
+function openRenameSceneDialog() {
+    const scene = getCurrentScene();
+    if (!scene || !scene.image) {
+        showToast('请先选择一个场景图', 'error');
+        return;
+    }
+
+    // 显示当前名称
+    const currentName = getSceneDisplayName(scene);
+    document.getElementById('rename-scene-current-name').value = currentName;
+
+    // 预填充当前名称
+    document.getElementById('rename-scene-name-ja').value = scene.name?.ja || '';
+    document.getElementById('rename-scene-name-zh').value = scene.name?.zh || '';
+
+    document.getElementById('rename-scene-dialog-overlay').classList.remove('hidden');
+}
+
+/** 关闭重命名场景图对话框 */
+function closeRenameSceneDialog() {
+    document.getElementById('rename-scene-dialog-overlay').classList.add('hidden');
+}
+
+/** 确认重命名场景图 */
+async function confirmRenameSceneImage() {
+    const scene = getCurrentScene();
+    if (!scene || !scene.image) {
+        showToast('请先选择一个场景图', 'error');
+        return;
+    }
+
+    const nameJa = document.getElementById('rename-scene-name-ja').value.trim();
+    const nameZh = document.getElementById('rename-scene-name-zh').value.trim();
+
+    if (!nameZh && !nameJa) {
+        showToast('请输入至少一个新名称', 'error');
+        return;
+    }
+
+    const newName = nameZh || nameJa;
+    const oldPath = scene.image;
+
+    try {
+        // 调用后端 API 重命名文件
+        const formData = new FormData();
+        formData.append('oldPath', oldPath);
+        formData.append('newName', newName);
+
+        const resp = await fetch('/api/rename-scene-image', {
+            method: 'POST',
+            body: formData
+        });
+        const result = await resp.json();
+        if (!result.success) {
+            throw new Error(result.error || '重命名失败');
+        }
+
+        // 更新场景数据
+        scene.image = result.newPath;
+        scene.name = { ja: nameJa || '', zh: nameZh || '' };
+
+        // 关闭对话框
+        closeRenameSceneDialog();
+
+        // 自动保存（先保存再刷新UI，避免UI错误导致保存丢失）
+        const saved = await saveMapping();
+
+        // 刷新场景预览和列表
+        renderSceneList();
+        selectScene(currentSceneIndex);
+
+        if (saved) {
+            showToast('场景图已重命名', 'success');
+        } else {
+            showToast('文件已重命名但配置保存失败，请手动点击保存按钮重试', 'error');
+            markDirty();
+        }
+    } catch (err) {
+        showToast('重命名失败: ' + err.message, 'error');
+    }
+}
+
+/** 确认添加场景（仅分类名，无图片） */
 async function confirmAddScene() {
     const ja = document.getElementById('dialog-category-ja').value.trim();
     const zh = document.getElementById('dialog-category-zh').value.trim();
@@ -1120,27 +1598,12 @@ async function confirmAddScene() {
         return;
     }
 
-    let imagePath = '';
-
-    // 如果选择了图片文件，先上传
-    if (dialogSelectedFile) {
-        // 构造场景分类目录名：使用中文分类名 + "场景"
-        const categoryDir = zh ? zh + '场景' : '';
-        try {
-            const result = await uploadImage(dialogSelectedFile, 'scene', categoryDir);
-            imagePath = result.path;
-            await loadImageList();
-        } catch (err) {
-            showToast('场景图上传失败: ' + err.message, 'error');
-            return;
-        }
-    }
-
-    // 生成新场景
+    // 生成新场景（仅分类名，无图片）
     const newScene = {
         id: generateSceneId(),
         category: { ja: ja || '', zh: zh || '' },
-        image: imagePath,
+        name: { ja: '', zh: '' },
+        image: '',
         hotspots: []
     };
 
@@ -1153,7 +1616,14 @@ async function confirmAddScene() {
     renderSceneList();
     selectScene(mappingData.scenes.length - 1);
 
-    showToast('场景已添加', 'success');
+    // 自动保存到服务器（先保存再提示，避免保存失败但用户以为成功）
+    const saved = await saveMapping();
+    if (saved) {
+        showToast('场景已添加，请点击"添加场景图"上传图片', 'success');
+    } else {
+        showToast('场景已创建但保存失败，请手动点击保存按钮重试', 'error');
+        markDirty();
+    }
 }
 
 // ==================== ID 生成 ====================
@@ -1194,12 +1664,12 @@ function generateHotspotId() {
  * @param {string} category - 场景分类文件夹名（type=scene 时必填）
  * @returns {Promise<Object>} 服务器返回的结果对象
  */
-async function uploadImage(file, type = 'product', category = '') {
+async function uploadImage(file, type = 'product', category = '', customFilename = '') {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('type', type); // 'scene' 或 'product'
     formData.append('category', category); // 场景分类文件夹名
-    formData.append('filename', file.name); // 原始文件名（服务端会转换后缀）
+    formData.append('filename', customFilename || file.name); // 自定义文件名或原始文件名
 
     const resp = await fetch('/api/upload-image', { method: 'POST', body: formData });
     const result = await resp.json();
@@ -1280,3 +1750,523 @@ window.addEventListener('resize', () => {
         renderHotspots();
     }
 });
+
+// ==================== 标签页切换 ====================
+
+function bindTabEvents() {
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            switchTab(btn.dataset.tab);
+        });
+    });
+}
+
+function switchTab(tabName) {
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tab === tabName);
+    });
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.toggle('active', content.id === tabName + '-tab');
+    });
+    if (tabName === 'product') {
+        loadProductList();
+    }
+}
+
+// ==================== 产品管理 ====================
+
+function bindProductEvents() {
+    // 添加产品按钮
+    document.getElementById('btn-add-product-new').addEventListener('click', () => {
+        productEditingNew = true;
+        currentProductIndex = -1;
+        document.querySelectorAll('.product-item').forEach(el => el.classList.remove('active'));
+        document.getElementById('no-product-hint').style.display = 'none';
+        document.getElementById('product-edit-form').style.display = 'block';
+        document.getElementById('product-editor-title-new').textContent = '新增产品';
+        document.getElementById('product-name-ja').value = '';
+        document.getElementById('product-name-zh').value = '';
+        document.getElementById('product-desc-cn').value = '';
+        document.getElementById('product-desc-jp').value = '';
+        productSelectedFile = null;
+        resetProductImageDropZone();
+        document.getElementById('product-image-preview').style.display = 'none';
+        populateCategorySelects();
+        document.getElementById('btn-delete-product').style.display = 'none';
+    });
+
+    // 保存产品
+    document.getElementById('btn-save-product').addEventListener('click', saveProduct);
+
+    // 删除产品
+    document.getElementById('btn-delete-product').addEventListener('click', deleteProduct);
+
+    // 新建大类按钮
+    document.getElementById('btn-new-category').addEventListener('click', () => {
+        const input = document.getElementById('product-category-new');
+        const btn = document.getElementById('btn-new-category');
+        if (input.style.display === 'none' || !input.style.display) {
+            input.style.display = 'inline-block';
+            input.focus();
+            btn.textContent = '确定';
+        } else {
+            const val = input.value.trim();
+            if (val) {
+                const select = document.getElementById('product-category-select');
+                const opt = document.createElement('option');
+                opt.value = val;
+                opt.textContent = val;
+                select.appendChild(opt);
+                select.value = val;
+                populateSubcategorySelect(val);
+            }
+            input.style.display = 'none';
+            input.value = '';
+            btn.textContent = '新建';
+        }
+    });
+
+    // 大类切换时更新子类下拉
+    document.getElementById('product-category-select').addEventListener('change', (e) => {
+        populateSubcategorySelect(e.target.value);
+    });
+
+    // 新建子类按钮
+    document.getElementById('btn-new-subcategory').addEventListener('click', () => {
+        const input = document.getElementById('product-subcategory-new');
+        const btn = document.getElementById('btn-new-subcategory');
+        if (input.style.display === 'none' || !input.style.display) {
+            input.style.display = 'inline-block';
+            input.focus();
+            btn.textContent = '确定';
+        } else {
+            const val = input.value.trim();
+            if (val) {
+                const select = document.getElementById('product-subcategory-select');
+                const opt = document.createElement('option');
+                opt.value = val;
+                opt.textContent = val;
+                select.appendChild(opt);
+                select.value = val;
+            }
+            input.style.display = 'none';
+            input.value = '';
+            btn.textContent = '新建';
+        }
+    });
+
+    // 产品图片拖拽区点击选择文件
+    document.getElementById('product-image-drop-zone').addEventListener('click', () => {
+        document.getElementById('product-image-file-input').click();
+    });
+
+    document.getElementById('product-image-file-input').addEventListener('change', async (e) => {
+        if (!e.target.files.length) return;
+        const file = e.target.files[0];
+        if (!isImageFile(file)) {
+            showToast('请选择图片文件', 'error');
+            e.target.value = '';
+            return;
+        }
+        productSelectedFile = file;
+        updateProductImageDropZone(file.name);
+    });
+
+    bindProductImageDropEvents();
+}
+
+/** 加载产品列表 */
+async function loadProductList() {
+    try {
+        const resp = await fetch('/api/list-products');
+        if (resp.ok) {
+            const data = await resp.json();
+            productsData = data.products || [];
+            renderProductManageList()
+        }
+    } catch (e) {
+        console.warn('加载产品列表失败:', e);
+        productsData = [];
+    }
+}
+
+/** 渲染产品管理列表（按大类/子类分组） */
+function renderProductManageList() {
+    const container = document.getElementById('product-list');
+    container.innerHTML = '';
+
+    if (productsData.length === 0) {
+        container.innerHTML = '<div style="color:#94a3b8;text-align:center;padding:20px;">暂无产品</div>';
+        return;
+    }
+
+    // 按 category -> subcategory 分组
+    const groups = {};
+    productsData.forEach((product, index) => {
+        const cat = product.category || '未分类';
+        const subcat = product.subcategory || '未分类';
+        if (!groups[cat]) groups[cat] = {};
+        if (!groups[cat][subcat]) groups[cat][subcat] = [];
+        groups[cat][subcat].push({ product, index });
+    });
+
+    // 渲染分组
+    Object.keys(groups).sort().forEach(catName => {
+        const groupEl = document.createElement('div');
+        groupEl.className = 'product-group';
+
+        const groupHeader = document.createElement('div');
+        groupHeader.className = 'product-group-header';
+        groupHeader.innerHTML = '<span class="toggle-icon">▼</span>' + catName;
+        groupHeader.addEventListener('click', () => groupEl.classList.toggle('collapsed'));
+        groupEl.appendChild(groupHeader);
+
+        const groupItems = document.createElement('div');
+        groupItems.className = 'product-group-items';
+
+        Object.keys(groups[catName]).sort().forEach(subcatName => {
+            const subgroupEl = document.createElement('div');
+            subgroupEl.className = 'product-subgroup';
+
+            const subgroupHeader = document.createElement('div');
+            subgroupHeader.className = 'product-subgroup-header';
+            subgroupHeader.innerHTML = '<span class="toggle-icon">▼</span>' + subcatName;
+            subgroupHeader.addEventListener('click', () => subgroupEl.classList.toggle('collapsed'));
+            subgroupEl.appendChild(subgroupHeader);
+
+            const subgroupItems = document.createElement('div');
+            subgroupItems.className = 'product-subgroup-items';
+
+            groups[catName][subcatName].forEach(({ product, index }) => {
+                const item = document.createElement('div');
+                item.className = 'product-item';
+                if (index === currentProductIndex) item.classList.add('active');
+
+                const thumb = document.createElement('img');
+                thumb.className = 'product-item-thumb';
+                thumb.src = encodeURI(product.imagePath || '');
+                thumb.onerror = () => { thumb.style.background = '#e2e8f0'; };
+
+                const name = document.createElement('div');
+                name.className = 'product-item-name';
+                name.textContent = product.nameZh || product.nameJa || '未命名';
+
+                item.appendChild(thumb);
+                item.appendChild(name);
+                item.addEventListener('click', () => selectProduct(index));
+                subgroupItems.appendChild(item);
+            });
+
+            subgroupEl.appendChild(subgroupItems);
+            groupItems.appendChild(subgroupEl);
+        });
+
+        groupEl.appendChild(groupItems);
+        container.appendChild(groupEl);
+    });
+}
+
+/** 选中产品 */
+async function selectProduct(index) {
+    currentProductIndex = index;
+    productEditingNew = false;
+    document.querySelectorAll('.product-item').forEach(el => el.classList.remove('active'));
+    document.getElementById('no-product-hint').style.display = 'none';
+    document.getElementById('product-edit-form').style.display = 'block';
+    document.getElementById('btn-delete-product').style.display = 'inline-block';
+    await updateProductManageEditor();
+    renderProductManageList()
+}
+
+/** 更新产品编辑器 */
+async function updateProductManageEditor() {
+    if (currentProductIndex < 0 || !productsData[currentProductIndex]) {
+        document.getElementById('no-product-hint').style.display = 'block';
+        document.getElementById('product-edit-form').style.display = 'none';
+        return;
+    }
+
+    const product = productsData[currentProductIndex];
+    document.getElementById('product-editor-title-new').textContent = '编辑产品：' + product.nameZh;
+
+    populateCategorySelects();
+    document.getElementById('product-category-select').value = product.category;
+    populateSubcategorySelect(product.category);
+    document.getElementById('product-subcategory-select').value = product.subcategory;
+
+    document.getElementById('product-name-ja').value = product.nameJa || '';
+    document.getElementById('product-name-zh').value = product.nameZh || '';
+
+    const descCn = await loadProductDescription(product.descCnPath);
+    const descJp = await loadProductDescription(product.descJpPath);
+    document.getElementById('product-desc-cn').value = descCn || '';
+    document.getElementById('product-desc-jp').value = descJp || '';
+
+    productSelectedFile = null;
+    if (product.imagePath) {
+        document.getElementById('product-image-preview-img').src = encodeURI(product.imagePath);
+        document.getElementById('product-image-preview').style.display = 'block';
+        resetProductImageDropZone();
+    } else {
+        document.getElementById('product-image-preview').style.display = 'none';
+    }
+}
+
+/** 填充大类下拉 */
+function populateCategorySelects() {
+    const select = document.getElementById('product-category-select');
+    const currentVal = select.value;
+    select.innerHTML = '';
+    const categories = [...new Set(productsData.map(p => p.category))].filter(c => c).sort();
+    categories.forEach(cat => {
+        const opt = document.createElement('option');
+        opt.value = cat;
+        opt.textContent = cat;
+        select.appendChild(opt);
+    });
+    if (currentVal) select.value = currentVal;
+}
+
+/** 填充子类下拉 */
+function populateSubcategorySelect(category) {
+    const select = document.getElementById('product-subcategory-select');
+    select.innerHTML = '';
+    const subcategories = [...new Set(
+        productsData.filter(p => p.category === category).map(p => p.subcategory)
+    )].filter(s => s).sort();
+    subcategories.forEach(subcat => {
+        const opt = document.createElement('option');
+        opt.value = subcat;
+        opt.textContent = subcat;
+        select.appendChild(opt);
+    });
+}
+
+/** 加载产品描述内容 */
+async function loadProductDescription(path) {
+    if (!path) return '';
+    try {
+        const resp = await fetch('/api/read-description?path=' + encodeURIComponent(path));
+        if (resp.ok) {
+            const data = await resp.json();
+            return data.content || '';
+        }
+    } catch (e) {
+        console.warn('加载描述失败:', e);
+    }
+    return '';
+}
+
+/** 保存产品 */
+async function saveProduct() {
+    const category = document.getElementById('product-category-select').value;
+    const subcategory = document.getElementById('product-subcategory-select').value;
+    const nameJa = document.getElementById('product-name-ja').value.trim();
+    const nameZh = document.getElementById('product-name-zh').value.trim();
+    const descCn = document.getElementById('product-desc-cn').value;
+    const descJp = document.getElementById('product-desc-jp').value;
+
+    if (!category || !subcategory) {
+        showToast('请选择或新建大类和子类', 'error');
+        return;
+    }
+    if (!nameZh) {
+        showToast('请输入中文产品名', 'error');
+        return;
+    }
+
+    let originalNameZh = '';
+    let oldImagePath = '';
+    if (!productEditingNew && currentProductIndex >= 0 && productsData[currentProductIndex]) {
+        originalNameZh = productsData[currentProductIndex].nameZh;
+        oldImagePath = productsData[currentProductIndex].imagePath || '';
+    }
+
+    const formData = new FormData();
+    formData.append('category', category);
+    formData.append('subcategory', subcategory);
+    formData.append('nameJa', nameJa);
+    formData.append('nameZh', nameZh);
+    formData.append('originalNameZh', originalNameZh);
+    formData.append('descCn', descCn);
+    formData.append('descJp', descJp);
+    if (productSelectedFile) {
+        formData.append('image', productSelectedFile);
+    }
+
+    try {
+        const resp = await fetch('/api/save-product', {
+            method: 'POST',
+            body: formData
+        });
+        const result = await resp.json();
+        if (!result.success) {
+            throw new Error(result.error || '保存失败');
+        }
+
+        // 同步到 mapping.json
+        const newProductData = {
+            name: { ja: result.nameJa || nameJa, zh: result.nameZh || nameZh },
+            image: result.imagePath,
+            descriptionFile: { ja: result.descJpPath, zh: result.descCnPath }
+        };
+        if (oldImagePath) {
+            syncProductToMapping(oldImagePath, newProductData);
+        }
+        await saveMapping();
+
+        // 重新加载产品列表
+        await loadProductList();
+
+        // 选中刚保存的产品
+        const savedIndex = productsData.findIndex(p =>
+            p.category === category && p.subcategory === subcategory && p.nameZh === nameZh
+        );
+        if (savedIndex >= 0) {
+            currentProductIndex = savedIndex;
+            productEditingNew = false;
+            renderProductManageList()
+            await updateProductManageEditor();
+        }
+
+        showToast('产品保存成功', 'success');
+    } catch (err) {
+        showToast('产品保存失败: ' + err.message, 'error');
+    }
+}
+
+/** 删除产品 */
+async function deleteProduct() {
+    if (currentProductIndex < 0 || !productsData[currentProductIndex]) return;
+
+    const product = productsData[currentProductIndex];
+    if (!confirm('确定删除产品「' + product.nameZh + '」吗？\n此操作将删除产品图片和描述文件。')) return;
+
+    try {
+        const resp = await fetch('/api/delete-product', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                category: product.category,
+                subcategory: product.subcategory,
+                nameZh: product.nameZh
+            })
+        });
+        const result = await resp.json();
+        if (!result.success) {
+            throw new Error(result.error || '删除失败');
+        }
+
+        // 从 mapping.json 中移除引用
+        syncProductToMapping(product.imagePath || '', null);
+        await saveMapping();
+        await loadProductList();
+
+        currentProductIndex = -1;
+        productEditingNew = false;
+        document.getElementById('no-product-hint').style.display = 'block';
+        document.getElementById('product-edit-form').style.display = 'none';
+        renderProductManageList()
+
+        showToast('产品已删除', 'success');
+    } catch (err) {
+        showToast('删除失败: ' + err.message, 'error');
+    }
+}
+
+/** 将产品变更同步到 mapping.json 中所有引用该产品的热点
+ * @param {string} oldImagePath - 旧的产品图片路径
+ * @param {object|null} newProductData - 新的产品数据（null 表示删除）
+ */
+function syncProductToMapping(oldImagePath, newProductData) {
+    if (!mappingData || !mappingData.scenes) return;
+
+    if (newProductData) {
+        // 更新引用
+        mappingData.scenes.forEach(scene => {
+            if (!scene.hotspots) return;
+            scene.hotspots.forEach(hotspot => {
+                if (!hotspot.products) return;
+                hotspot.products.forEach(product => {
+                    if (product.image === oldImagePath) {
+                        product.name = newProductData.name;
+                        product.image = newProductData.image;
+                        product.descriptionFile = newProductData.descriptionFile;
+                    }
+                });
+            });
+        });
+    } else {
+        // 删除引用
+        mappingData.scenes.forEach(scene => {
+            if (!scene.hotspots) return;
+            scene.hotspots.forEach(hotspot => {
+                if (!hotspot.products) return;
+                hotspot.products = hotspot.products.filter(p => p.image !== oldImagePath);
+            });
+        });
+    }
+}
+
+// ==================== 产品图片上传区 ====================
+
+function resetProductImageDropZone() {
+    const dropZone = document.getElementById('product-image-drop-zone');
+    if (!dropZone) return;
+    dropZone.classList.remove('drag-over');
+    dropZone.innerHTML =
+        '<div class="drop-zone-icon">&#128194;</div>' +
+        '<div>将产品图片拖到此处</div>' +
+        '<div class="drop-zone-hint">或点击选择文件</div>';
+}
+
+function updateProductImageDropZone(filename) {
+    const dropZone = document.getElementById('product-image-drop-zone');
+    if (!dropZone) return;
+    dropZone.innerHTML =
+        '<div style="color:#22c55e;font-size:18px;">&#10003;</div>' +
+        '<div style="color:#334155;font-weight:500;">' + filename + '</div>' +
+        '<div class="drop-zone-hint">点击重新选择</div>';
+}
+
+function bindProductImageDropEvents() {
+    const dropZone = document.getElementById('product-image-drop-zone');
+    let dragCounter = 0;
+
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+    });
+    dropZone.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.dataTransfer && e.dataTransfer.types && e.dataTransfer.types.includes('Files')) {
+            dragCounter++;
+            dropZone.classList.add('drag-over');
+        }
+    });
+    dropZone.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounter--;
+        if (dragCounter <= 0) {
+            dragCounter = 0;
+            dropZone.classList.remove('drag-over');
+        }
+    });
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounter = 0;
+        dropZone.classList.remove('drag-over');
+        const files = e.dataTransfer.files;
+        if (!files || files.length === 0) return;
+        const file = files[0];
+        if (!isImageFile(file)) {
+            showToast('只支持图片格式文件', 'error');
+            return;
+        }
+        productSelectedFile = file;
+        updateProductImageDropZone(file.name);
+    });
+}

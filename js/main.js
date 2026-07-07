@@ -61,7 +61,7 @@ async function loadMapping() {
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
         try {
-            const response = await fetch('mapping.json');
+            const response = await fetch('mapping.json?t=' + Date.now());
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
             }
@@ -332,11 +332,24 @@ function preloadAllImages() {
         });
     };
 
-    /* 并行加载所有图片 */
-    return Promise.all(Array.from(imagePaths).map(preloadOne)).then(() => {
+    /* 分批并发加载：每批最多 4 张图片同时加载
+     * 避免一次性发出 40+ 请求导致服务端排队
+     * 浏览器对同一域名最多 6 个并发连接，
+     * 4 个并发既充分利用连接池，又不会压垂单线程服务器 */
+    const PRELOAD_BATCH_SIZE = 4;
+    const allPaths = Array.from(imagePaths);
+
+    async function preloadInBatches() {
+        for (let i = 0; i < allPaths.length; i += PRELOAD_BATCH_SIZE) {
+            const batch = allPaths.slice(i, i + PRELOAD_BATCH_SIZE);
+            await Promise.all(batch.map(preloadOne));
+            console.log(`图片预加载进度: ${loaded}/${total} 张`);
+        }
         console.log(`图片预加载完成: ${loaded}/${total} 张`);
         return loaded;
-    });
+    }
+
+    return preloadInBatches();
 }
 
 /**

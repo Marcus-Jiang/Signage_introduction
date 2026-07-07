@@ -11,17 +11,27 @@
     <div id="toolbar">
         <h1>数字标牌管理后台</h1>
         <div id="toolbar-actions">
+            <span id="dirty-indicator" style="display:none;color:#f59e0b;font-size:13px;font-weight:500;">● 未保存</span>
             <span id="save-status"></span>
             <button id="btn-save">保存配置</button>
         </div>
     </div>
 
+    <!-- 标签栏 -->
+    <div id="tab-bar">
+        <button class="tab-btn active" data-tab="scene">场景管理</button>
+        <button class="tab-btn" data-tab="product">产品管理</button>
+    </div>
+
+    <!-- 场景管理标签页 -->
+    <div id="scene-tab" class="tab-content active">
     <!-- 三栏主体容器 -->
     <div id="main-container">
         <!-- 左栏：场景列表 -->
         <div id="scene-list-panel">
             <div class="panel-header">
                 <h3>场景列表</h3>
+                <div class="sort-hint">拖拽分组标题调整大类顺序，拖拽场景调整组内顺序</div>
             </div>
             <div id="scene-list"></div>
             <div class="panel-footer">
@@ -64,6 +74,8 @@
             </div>
             <!-- 底部工具栏 -->
             <div id="editor-toolbar">
+                <button id="btn-add-scene-image">添加场景图</button>
+                                <button id="btn-rename-scene-image">重命名场景图</button>
                 <button id="btn-add-hotspot">添加热点</button>
                 <button id="btn-delete-hotspot">删除选中热点</button>
                 <span id="hotspot-coord-info">未选中热点</span>
@@ -84,11 +96,84 @@
             </div>
         </div>
     </div>
+    </div><!-- scene-tab结束 -->
+
+    <!-- 产品管理标签页 -->
+    <div id="product-tab" class="tab-content">
+        <div id="product-manage-container">
+            <!-- 左栏：产品列表 -->
+            <div id="product-list-panel">
+                <div class="panel-header">
+                    <h3>产品列表</h3>
+                </div>
+                <div id="product-list"></div>
+                <div class="panel-footer">
+                    <button id="btn-add-product-new">+ 添加产品</button>
+                </div>
+            </div>
+
+            <!-- 右栏：产品编辑器 -->
+            <div id="product-editor-panel-new">
+                <div class="panel-header">
+                    <h3 id="product-editor-title-new">产品编辑</h3>
+                </div>
+                <div id="product-editor-body">
+                    <div id="no-product-hint">请从左侧选择一个产品，或点击"添加产品"</div>
+                    <div id="product-edit-form" style="display:none">
+                        <div class="product-form-field">
+                            <label>大类：</label>
+                            <select id="product-category-select"></select>
+                            <input type="text" id="product-category-new" placeholder="新大类名称" style="display:none">
+                            <button id="btn-new-category" type="button">新建</button>
+                        </div>
+                        <div class="product-form-field">
+                            <label>子类：</label>
+                            <select id="product-subcategory-select"></select>
+                            <input type="text" id="product-subcategory-new" placeholder="新子类名称" style="display:none">
+                            <button id="btn-new-subcategory" type="button">新建</button>
+                        </div>
+                        <div class="product-form-field">
+                            <label>产品名称(日文)：</label>
+                            <input type="text" id="product-name-ja" placeholder="日文产品名">
+                        </div>
+                        <div class="product-form-field">
+                            <label>产品名称(中文)：</label>
+                            <input type="text" id="product-name-zh" placeholder="中文产品名">
+                        </div>
+                        <div class="product-form-field">
+                            <label>产品图片：</label>
+                            <div id="product-image-drop-zone" class="drop-zone">
+                                <div class="drop-zone-icon">&#128194;</div>
+                                <div>将产品图片拖到此处</div>
+                                <div class="drop-zone-hint">或点击选择文件</div>
+                            </div>
+                            <input type="file" id="product-image-file-input" accept="image/*" style="display:none">
+                            <div id="product-image-preview" class="product-image-preview" style="display:none">
+                                <img id="product-image-preview-img" src="" alt="产品预览图">
+                            </div>
+                        </div>
+                        <div class="product-form-field">
+                            <label>中文描述：</label>
+                            <textarea id="product-desc-cn" class="product-desc-textarea" placeholder="产品中文描述"></textarea>
+                        </div>
+                        <div class="product-form-field">
+                            <label>日文描述：</label>
+                            <textarea id="product-desc-jp" class="product-desc-textarea" placeholder="产品日文描述"></textarea>
+                        </div>
+                        <div class="product-form-actions">
+                            <button id="btn-save-product">保存产品</button>
+                            <button id="btn-delete-product" class="danger-btn">删除产品</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Toast 提示容器 -->
     <div id="toast-container"></div>
 
-    <!-- 添加场景对话框 -->
+    <!-- 添加场景对话框（仅输入分类名） -->
     <div id="dialog-overlay" class="hidden">
         <div id="add-scene-dialog">
             <h3>添加新场景</h3>
@@ -98,20 +183,67 @@
             </div>
             <div class="dialog-field">
                 <label>分类名(中文)：</label>
-                <input type="text" id="dialog-category-zh" placeholder="例：便利店">
+                <input type="text" id="dialog-category-zh" placeholder="例：便利店场景">
+            </div>
+            <div class="dialog-hint">添加场景后，请选中该场景并点击"添加场景图"上传图片</div>
+            <div class="dialog-actions">
+                <button id="btn-dialog-cancel">取消</button>
+                <button id="btn-dialog-confirm">确定添加</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加场景图对话框 -->
+    <div id="scene-image-dialog-overlay" class="hidden">
+        <div id="add-scene-image-dialog">
+            <h3>添加场景图</h3>
+            <div class="dialog-field">
+                <label>所属场景分类：</label>
+                <input type="text" id="scene-image-category" readonly placeholder="请先选择场景">
             </div>
             <div class="dialog-field">
-                <label>场景图：</label>
-                <div id="dialog-drop-zone" class="drop-zone">
+                <label>场景图名称(日文)：</label>
+                <input type="text" id="scene-image-name-ja" placeholder="例：コンビニシーン1">
+            </div>
+            <div class="dialog-field">
+                <label>场景图名称(中文)：</label>
+                <input type="text" id="scene-image-name-zh" placeholder="例：便利店场景1">
+            </div>
+            <div class="dialog-field">
+                <label>场景图片：</label>
+                <div id="scene-image-drop-zone" class="drop-zone">
                     <div class="drop-zone-icon">&#128194;</div>
                     <div>将场景图拖到此处</div>
                     <div class="drop-zone-hint">或点击选择文件</div>
                 </div>
-                <input type="file" id="dialog-scene-image" accept="image/*" style="display:none">
+                <input type="file" id="scene-image-file-input" accept="image/*" style="display:none">
             </div>
             <div class="dialog-actions">
-                <button id="btn-dialog-cancel">取消</button>
-                <button id="btn-dialog-confirm">确定添加</button>
+                <button id="btn-scene-image-cancel">取消</button>
+                <button id="btn-scene-image-confirm">确定添加</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 重命名场景图对话框 -->
+    <div id="rename-scene-dialog-overlay" class="hidden">
+        <div id="rename-scene-dialog">
+            <h3>重命名场景图</h3>
+            <div class="dialog-field">
+                <label>当前场景图名称：</label>
+                <input type="text" id="rename-scene-current-name" readonly>
+            </div>
+            <div class="dialog-field">
+                <label>新场景图名称(日文)：</label>
+                <input type="text" id="rename-scene-name-ja" placeholder="例：コンビニシーン2">
+            </div>
+            <div class="dialog-field">
+                <label>新场景图名称(中文)：</label>
+                <input type="text" id="rename-scene-name-zh" placeholder="例：便利店场景2">
+            </div>
+            <div class="dialog-actions">
+                <button id="btn-rename-scene-cancel">取消</button>
+                <button id="btn-rename-scene-confirm">确定重命名</button>
             </div>
         </div>
     </div>

@@ -1,16 +1,17 @@
-version: '3.8'
-
 services:
   digital-signage:
-    build: .
+    image: digital_signage_introduction-digital-signage
     container_name: digital-signage-app
     ports:
       - "65002:65002"
     volumes:
-      - ./mapping.json:/app/mapping.json
-      - ./场景图:/app/场景图
-      - ./产品图:/app/产品图
-      - ./产品描述:/app/产品描述
+      - .:/app
     restart: unless-stopped
     environment:
       - PYTHONUNBUFFERED=1
+      - HTTP_PROXY=
+      - http_proxy=
+      - HTTPS_PROXY=
+      - https_proxy=
+      - NO_PROXY=
+      - no_proxy=
