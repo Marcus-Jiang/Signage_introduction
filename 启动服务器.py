@@ -700,13 +700,21 @@ class APIHandler(http.server.SimpleHTTPRequestHandler):
                     saved_image_name = name_zh + ext
                     break
 
-        # 写入 MD 文件
+        # 写入 MD 文件（仅在内容非空时写入，防止意外覆盖已有描述）
         cn_path = os.path.join(product_dir, name_zh + '_cn.md')
         jp_path = os.path.join(product_dir, name_zh + '_jp.md')
-        with open(cn_path, 'w', encoding='utf-8') as f:
-            f.write(desc_cn)
-        with open(jp_path, 'w', encoding='utf-8') as f:
-            f.write(desc_jp)
+        if desc_cn.strip():
+            with open(cn_path, 'w', encoding='utf-8') as f:
+                f.write(desc_cn)
+        elif not os.path.exists(cn_path):
+            with open(cn_path, 'w', encoding='utf-8') as f:
+                f.write('')
+        if desc_jp.strip():
+            with open(jp_path, 'w', encoding='utf-8') as f:
+                f.write(desc_jp)
+        elif not os.path.exists(jp_path):
+            with open(jp_path, 'w', encoding='utf-8') as f:
+                f.write('')
 
         # 更新 products.json
         self._update_products_json(category, subcategory, name_zh, name_ja)
