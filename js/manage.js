@@ -961,9 +961,6 @@ function updateProductEditor() {
         return;
     }
 
-    // 调试日志：确认数据流是否正确
-    console.log('[调试] updateProductEditor:', { selectedHotspotIndex, sceneId: scene?.id, hotspotsCount: scene?.hotspots?.length });
-
     const hs = scene.hotspots[selectedHotspotIndex];
     titleEl.textContent = `热点 ${toCircledNumber(selectedHotspotIndex + 1)} 关联产品`;
     noHint.style.display = 'none';

@@ -6,8 +6,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libwebp-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# 安装 Pillow 和 watchdog（用于文件变更自动重启）
-RUN pip install --no-cache-dir Pillow watchdog
+# 安装 Pillow（用于图片格式转换）
+RUN pip install --no-cache-dir Pillow
 
 WORKDIR /app
 
